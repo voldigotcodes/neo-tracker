@@ -18,6 +18,7 @@ let dashDate   = '';
 let feedDate   = '';
 let editingId  = null;   // sale ID being edited, null = new sale
 let salesCache = {};     // id → sale object, populated by feed renders
+let cxInterested = [];   // interested_in chips selected on the add-contact form
 
 // ── HELPERS ──────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -33,6 +34,14 @@ function shiftDateStr(s, n) {
   const d = new Date(s + 'T12:00:00');
   d.setDate(d.getDate() + n);
   return d.toISOString().slice(0,10);
+}
+
+// Returns YYYY-MM-DD in the user's local timezone (for comparing follow_up_at to today)
+function localDateStr(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
 function pct(a,b) { return b ? Math.round(a/b*100) : 0; }
@@ -54,7 +63,7 @@ function toast(msg, dur=2600) {
 
 function initDates() {
   const d = fmtDate(new Date());
-  ['log-date','feed-date','stats-date','manage-date']
+  ['log-date','feed-date','stats-date','manage-date','cx-date']
     .forEach(id => { const e=$(id); if(e) e.textContent = d; });
 }
 
@@ -99,7 +108,9 @@ window.doLogout = function() {
   $('lead-app').style.display = 'none';
   $('rep-app').style.display  = 'none';
   $('view-log').classList.remove('active');
+  $('view-contacts').classList.remove('active');
   $('view-login').classList.add('active');
+  resetContactForm();
   // reset login form state
   $('login-btn').disabled = false; $('login-btn').textContent = 'Sign in';
   $('login-err').classList.remove('show');
@@ -220,20 +231,22 @@ async function populateResetSelect() {
 
 // ── NAV ──────────────────────────────────────────────────────────
 window.goRep = function(v) {
-  ['log','feed','stats'].forEach(x => $('nav-'+x).classList.toggle('active', x===v));
-  ['view-log','view-feed','view-stats'].forEach(id => $(id).classList.remove('active'));
-  if (v === 'log')   { $('view-log').classList.add('active');   prepareLogForm(); }
-  if (v === 'feed')  { $('view-feed').classList.add('active');  renderRepFeed(); }
-  if (v === 'stats') { $('view-stats').classList.add('active'); renderRepStats(); }
+  ['log','feed','contacts','stats'].forEach(x => $('nav-'+x).classList.toggle('active', x===v));
+  ['view-log','view-feed','view-contacts','view-stats'].forEach(id => $(id).classList.remove('active'));
+  if (v === 'log')      { $('view-log').classList.add('active');      prepareLogForm(); }
+  if (v === 'feed')     { $('view-feed').classList.add('active');     renderRepFeed(); }
+  if (v === 'contacts') { $('view-contacts').classList.add('active'); renderContacts(); }
+  if (v === 'stats')    { $('view-stats').classList.add('active');    renderRepStats(); }
 };
 
 window.goLead = function(v) {
-  ['dash','feed','log','manage'].forEach(x => $('lnav-'+x).classList.toggle('active', x===v));
-  ['lview-dash','lview-feed','lview-manage','view-log'].forEach(id => $(id).classList.remove('active'));
-  if (v === 'dash')   { $('lview-dash').classList.add('active');   renderDash(); }
-  if (v === 'feed')   { $('lview-feed').classList.add('active');   renderLeadFeed(); }
-  if (v === 'log')    { $('view-log').classList.add('active');     prepareLogForm(); }
-  if (v === 'manage') { $('lview-manage').classList.add('active'); renderManage(); }
+  ['dash','feed','contacts','log','manage'].forEach(x => $('lnav-'+x).classList.toggle('active', x===v));
+  ['lview-dash','lview-feed','lview-manage','view-log','view-contacts'].forEach(id => $(id).classList.remove('active'));
+  if (v === 'dash')     { $('lview-dash').classList.add('active');    renderDash(); }
+  if (v === 'feed')     { $('lview-feed').classList.add('active');    renderLeadFeed(); }
+  if (v === 'contacts') { $('view-contacts').classList.add('active'); renderContacts(); }
+  if (v === 'log')      { $('view-log').classList.add('active');      prepareLogForm(); }
+  if (v === 'manage')   { $('lview-manage').classList.add('active');  renderManage(); }
 };
 
 // ── LOG FORM SETUP ────────────────────────────────────────────────
@@ -747,6 +760,185 @@ window.closeRepModal = function() {
   $('rep-modal-overlay').style.display = 'none';
   $('rep-modal').style.display = 'none';
 };
+
+// ── CONTACTS ─────────────────────────────────────────────────────
+
+window.toggleCxChip = function(chip) {
+  const idx = cxInterested.indexOf(chip);
+  if (idx > -1) { cxInterested.splice(idx, 1); $('cxchip-'+chip).classList.remove('in'); }
+  else          { cxInterested.push(chip);      $('cxchip-'+chip).classList.add('in'); }
+};
+
+window.setCxFollowup = function(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  const pad = n => String(n).padStart(2,'0');
+  $('cx-followup-dt').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T10:00`;
+  $('cx-followup-dt').style.display = 'block';
+  $('cx-fup-today').classList.toggle('on', offset === 0);
+  $('cx-fup-tomorrow').classList.toggle('on', offset === 1);
+};
+
+window.pickCxDate = function() {
+  const dt = $('cx-followup-dt');
+  dt.style.display = 'block';
+  dt.focus();
+  $('cx-fup-today').classList.remove('on');
+  $('cx-fup-tomorrow').classList.remove('on');
+};
+
+window.saveContact = async function() {
+  const name = $('cx-name').value.trim();
+  if (!name) { toast('Enter customer name'); return; }
+  const btn = document.querySelector('#view-contacts .btn-primary');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const fupVal = $('cx-followup-dt').value;
+  const contact = {
+    mall_id:       MALL_ID,
+    rep_id:        session.id,
+    rep_name:      session.name,
+    name,
+    phone:         $('cx-phone').value.trim() || null,
+    email:         $('cx-email').value.trim() || null,
+    interested_in: cxInterested.length ? [...cxInterested] : null,
+    notes:         $('cx-notes').value.trim() || null,
+    follow_up_at:  fupVal ? new Date(fupVal).toISOString() : null,
+    status:        'pending'
+  };
+  const { error } = await db.from('contacts').insert(contact);
+  if (error) { toast('Error saving contact'); btn.disabled=false; btn.textContent='Save contact'; return; }
+  toast(name + ' saved ✓');
+  resetContactForm();
+  btn.disabled = false; btn.textContent = 'Save contact';
+  await renderContacts();
+};
+
+window.updateContactStatus = async function(id, status) {
+  const { error } = await db.from('contacts').update({ status }).eq('id', id);
+  if (error) { toast('Error updating'); return; }
+  const msgs = { converted: '✓ Converted!', lost: 'Marked lost', called: '✓ Called' };
+  toast(msgs[status] || '✓ Updated');
+  await renderContacts();
+};
+
+window.deleteContact = async function(id) {
+  if (!confirm('Delete this contact?')) return;
+  const { error } = await db.from('contacts').delete().eq('id', id);
+  if (error) { toast('Error deleting'); return; }
+  toast('Contact deleted');
+  await renderContacts();
+};
+
+window.toggleCxCard = function(id) {
+  const card = $('cxcard-' + id);
+  if (card) card.classList.toggle('open');
+};
+
+function resetContactForm() {
+  const fields = ['cx-name','cx-phone','cx-email','cx-notes'];
+  fields.forEach(id => { const e=$(id); if(e) e.value=''; });
+  const dt = $('cx-followup-dt');
+  if (dt) { dt.value=''; dt.style.display='none'; }
+  cxInterested = [];
+  document.querySelectorAll('.cx-chip').forEach(el => el.classList.remove('in'));
+  document.querySelectorAll('.cx-fup-btn').forEach(el => el.classList.remove('on'));
+}
+
+// ALWAYS filters by rep_id = session.id — no exceptions
+async function renderContacts() {
+  const { data } = await db.from('contacts')
+    .select('*')
+    .eq('rep_id', session.id)
+    .order('follow_up_at', { ascending: true, nullsFirst: false });
+
+  $('cx-list').innerHTML = buildContactsHTML(data || []);
+
+  const today = todayKey();
+  const overdueCount = (data || []).filter(c =>
+    c.status === 'pending' && c.follow_up_at && localDateStr(c.follow_up_at) < today
+  ).length;
+  ['nav-contacts-badge','lnav-contacts-badge'].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = overdueCount || '';
+    el.style.display = overdueCount > 0 ? 'flex' : 'none';
+  });
+}
+
+function buildContactsHTML(contacts) {
+  if (!contacts.length) return '<div class="empty">No contacts yet.<br>Add your first lead above.</div>';
+
+  const today    = todayKey();
+  const tomorrow = shiftDateStr(today, 1);
+  const groups   = { overdue:[], today:[], upcoming:[], nodate:[], past:[] };
+
+  contacts.forEach(c => {
+    if (c.status !== 'pending') { groups.past.push(c); return; }
+    if (!c.follow_up_at)        { groups.nodate.push(c); return; }
+    const d = localDateStr(c.follow_up_at);
+    if (d < today)       groups.overdue.push(c);
+    else if (d === today) groups.today.push(c);
+    else                  groups.upcoming.push(c);
+  });
+
+  let html = '';
+  if (groups.overdue.length)  html += renderCxGroup('Overdue',     groups.overdue,  today, tomorrow);
+  if (groups.today.length)    html += renderCxGroup('Today',       groups.today,    today, tomorrow);
+  if (groups.upcoming.length) html += renderCxGroup('Upcoming',    groups.upcoming, today, tomorrow);
+  if (groups.nodate.length)   html += renderCxGroup('No date set', groups.nodate,   today, tomorrow);
+  if (groups.past.length)     html += renderCxGroup('Past',        groups.past,     today, tomorrow);
+  return html;
+}
+
+function renderCxGroup(label, contacts, today, tomorrow) {
+  return `<div class="cx-section-label">${label}</div>` +
+    contacts.map(c => renderCxCard(c, today, tomorrow)).join('');
+}
+
+function renderCxCard(c, today, tomorrow) {
+  const statusLabels = { pending:'Pending', called:'Called', converted:'Converted', lost:'Lost' };
+  const intLabels    = { credit:'Credit Card', money:'Money Account', debit:'Debit' };
+
+  // follow-up label
+  let fuLabel = '';
+  if (c.follow_up_at) {
+    const d = localDateStr(c.follow_up_at);
+    if (d < today)         fuLabel = `<div class="cx-followup cx-overdue">Overdue · ${fmtDateStr(d)}</div>`;
+    else if (d === today)  fuLabel = `<div class="cx-followup cx-today">Today</div>`;
+    else if (d === tomorrow) fuLabel = `<div class="cx-followup">Tomorrow</div>`;
+    else                   fuLabel = `<div class="cx-followup">${fmtDateStr(d)}</div>`;
+  }
+
+  const intChips = (c.interested_in || []).map(i =>
+    `<span class="ck cnt">${intLabels[i] || i}</span>`
+  ).join('');
+
+  const phoneLink = c.phone ? `<a class="cx-contact-link" href="tel:${c.phone}" onclick="event.stopPropagation()">${c.phone}</a>` : '';
+  const emailLink = c.email ? `<a class="cx-contact-link" href="mailto:${c.email}" onclick="event.stopPropagation()">${c.email}</a>` : '';
+
+  // action buttons — never show the current status as a button
+  const actions = [];
+  if (c.status !== 'called')    actions.push(`<button class="cx-action-btn called"    onclick="updateContactStatus('${c.id}','called')">Mark called</button>`);
+  if (c.status !== 'converted') actions.push(`<button class="cx-action-btn converted" onclick="updateContactStatus('${c.id}','converted')">Mark converted</button>`);
+  if (c.status !== 'lost')      actions.push(`<button class="cx-action-btn lost"      onclick="updateContactStatus('${c.id}','lost')">Mark lost</button>`);
+  actions.push(`<button class="cx-action-btn delete" onclick="deleteContact('${c.id}')">Delete</button>`);
+
+  return `<div class="cx-card" id="cxcard-${c.id}" onclick="toggleCxCard('${c.id}')">
+    <div class="cx-card-body">
+      <div class="cx-name-row">
+        <div class="cx-name">${c.name}</div>
+        <span class="status-pill ${c.status}">${statusLabels[c.status]}</span>
+      </div>
+      ${phoneLink || emailLink ? `<div class="cx-contact-row">${phoneLink}${emailLink ? (phoneLink ? '&nbsp;&nbsp;' : '') + emailLink : ''}</div>` : ''}
+      ${intChips ? `<div class="cx-chips">${intChips}</div>` : ''}
+      ${c.notes ? `<div class="cx-notes-preview">${c.notes}</div>` : ''}
+      ${fuLabel}
+    </div>
+    <div class="cx-actions" onclick="event.stopPropagation()">
+      ${actions.join('')}
+    </div>
+  </div>`;
+}
 
 // ── AUTO-REFRESH ──────────────────────────────────────────────────
 setInterval(() => {

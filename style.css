@@ -429,3 +429,115 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 0 16px 10px;
 .modal-title  { font-size: 18px; font-weight: 700; }
 .modal-sub    { font-size: 12px; color: var(--text2); margin-top: 3px; }
 .modal-kpis   { display: flex; gap: 8px; padding: 0 20px 14px; flex-wrap: wrap; flex-shrink: 0; }
+
+/* ── CONTACTS ─────────────────────────────────────────────────── */
+
+/* Nav badge */
+.nav-btn { position: relative; }
+.nav-badge {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 16px; height: 16px;
+  background: #E53E3E; color: #fff;
+  font-size: 10px; font-weight: 700;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 3px;
+  pointer-events: none;
+}
+
+/* Status pills */
+.status-pill {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  padding: 2px 7px; border-radius: 20px;
+  flex-shrink: 0;
+}
+.status-pill.pending   { background: #FEF3C7; color: #92400E; }
+.status-pill.called    { background: #DBEAFE; color: #1E40AF; }
+.status-pill.converted { background: #D1FAE5; color: #065F46; }
+.status-pill.lost      { background: var(--bg2); color: var(--text2); }
+
+/* Section label */
+.cx-section-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text3);
+  padding: 14px 0 6px;
+}
+
+/* Contact card */
+.cx-card {
+  background: var(--white);
+  border-radius: var(--r);
+  margin-bottom: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.cx-card-body { padding: 12px 14px 10px; }
+.cx-name-row  { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.cx-name      { font-size: 15px; font-weight: 700; }
+.cx-contact-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.cx-contact-link {
+  font-size: 12px; color: var(--blue);
+  text-decoration: none;
+}
+.cx-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.cx-notes-preview {
+  font-size: 12px; color: var(--text2);
+  margin-top: 5px;
+  overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Follow-up labels */
+.cx-followup { font-size: 11px; margin-top: 6px; font-weight: 600; }
+.cx-overdue  { color: #E53E3E; }
+.cx-today    { color: #2B7A0B; }
+
+/* Action drawer — hidden by default, shown on .open */
+.cx-actions {
+  display: none;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--border);
+}
+.cx-card.open .cx-actions { display: flex; }
+
+.cx-action-btn {
+  font-size: 12px; font-weight: 600;
+  border: none; border-radius: 20px;
+  padding: 5px 12px; cursor: pointer;
+}
+.cx-action-btn.called    { background: #DBEAFE; color: #1E40AF; }
+.cx-action-btn.converted { background: #D1FAE5; color: #065F46; }
+.cx-action-btn.lost      { background: var(--bg2); color: var(--text2); }
+.cx-action-btn.delete    { background: #FEE2E2; color: #991B1B; margin-left: auto; }
+
+/* Add-contact form helpers */
+.cx-chip {
+  font-size: 12px; font-weight: 600;
+  padding: 5px 12px; border-radius: 20px;
+  border: 1.5px solid var(--border2);
+  background: var(--bg);
+  color: var(--text2); cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.cx-chip.in {
+  background: var(--blue-light);
+  color: var(--blue);
+  border-color: var(--blue);
+}
+
+.cx-fup-btn {
+  font-size: 12px; font-weight: 600;
+  padding: 5px 12px; border-radius: 20px;
+  border: 1.5px solid var(--border2);
+  background: var(--bg);
+  color: var(--text2); cursor: pointer;
+}
+.cx-fup-btn.on {
+  background: var(--blue-light);
+  color: var(--blue);
+  border-color: var(--blue);
+}
