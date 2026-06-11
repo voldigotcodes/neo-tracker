@@ -351,3 +351,73 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 0 16px 10px;
 .logout-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; }
 .logout-row span { font-size: 14px; color: var(--text2); font-weight: 500; }
 .btn-logout { font-size: 13px; font-weight: 700; color: var(--red); background: var(--red-faint); border: none; border-radius: 20px; padding: 7px 14px; cursor: pointer; }
+
+/* ── DATE NAV ── */
+.date-nav { display: flex; align-items: center; gap: 4px; }
+.date-nav-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: none; background: var(--white);
+  color: var(--text2); font-size: 20px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow); cursor: pointer;
+  transition: opacity .15s;
+}
+.date-nav-btn:disabled { opacity: .28; cursor: not-allowed; }
+.date-nav-btn:not(:disabled):active { opacity: .6; }
+
+/* ── REP NAME STATIC DISPLAY ── */
+.name-display {
+  margin: 0 16px;
+  padding: 13px 16px;
+  background: var(--white);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--rs);
+  font-size: 15px; font-weight: 600;
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+/* ── FEED DELETE BUTTON ── */
+.feed-del {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: none; background: var(--red-faint); color: var(--red);
+  font-size: 12px; font-weight: 800; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  align-self: center; flex-shrink: 0;
+  transition: opacity .15s;
+}
+.feed-del:active { opacity: .6; }
+
+/* ── REP ROW DRILL-DOWN ── */
+.rep-row-clickable { cursor: pointer; border-radius: var(--rxs); transition: background .1s; }
+.rep-row-clickable:active { background: var(--bg); }
+.rep-chev { width: 14px; height: 14px; stroke: var(--text3); fill: none; stroke-width: 2.5; flex-shrink: 0; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 200;
+}
+.modal-sheet {
+  position: fixed; bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 100%; max-width: 430px;
+  background: var(--white);
+  border-radius: var(--r) var(--r) 0 0;
+  z-index: 201;
+  display: none;
+  flex-direction: column;
+  max-height: 85vh;
+  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  box-shadow: var(--shadow-lg);
+}
+.modal-handle {
+  width: 36px; height: 4px;
+  background: var(--bg3); border-radius: 2px;
+  margin: 12px auto 0; flex-shrink: 0;
+}
+.modal-header { padding: 16px 20px 8px; flex-shrink: 0; }
+.modal-title  { font-size: 18px; font-weight: 700; }
+.modal-sub    { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.modal-kpis   { display: flex; gap: 8px; padding: 0 20px 14px; flex-wrap: wrap; flex-shrink: 0; }
