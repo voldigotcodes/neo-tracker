@@ -377,14 +377,22 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 0 16px 10px;
   box-shadow: var(--shadow);
 }
 
-/* ── FEED DELETE BUTTON ── */
+/* ── FEED ACTIONS (edit + delete) ── */
+.feed-actions { display: flex; flex-direction: column; gap: 6px; align-self: center; flex-shrink: 0; }
+.feed-edit {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: none; background: var(--blue-faint); color: var(--blue);
+  font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: opacity .15s;
+}
+.feed-edit:active { opacity: .6; }
 .feed-del {
   width: 28px; height: 28px; border-radius: 50%;
   border: none; background: var(--red-faint); color: var(--red);
   font-size: 12px; font-weight: 800; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  align-self: center; flex-shrink: 0;
-  transition: opacity .15s;
+  flex-shrink: 0; transition: opacity .15s;
 }
 .feed-del:active { opacity: .6; }
 

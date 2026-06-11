@@ -77,6 +77,7 @@ create policy "reps_update" on reps for update using (true);
 create policy "sales_read"   on sales for select using (true);
 create policy "sales_insert" on sales for insert with check (true);
 create policy "sales_delete" on sales for delete using (true);
+create policy "sales_update" on sales for update using (true);
 
 -- Push subs: each rep manages their own
 create policy "push_read"   on push_subscriptions for select using (true);

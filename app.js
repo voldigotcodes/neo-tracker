@@ -16,6 +16,8 @@ let form       = { act: false, dep: false, depAmt: null };
 let realtimeCh = null;
 let dashDate   = '';
 let feedDate   = '';
+let editingId  = null;   // sale ID being edited, null = new sale
+let salesCache = {};     // id → sale object, populated by feed renders
 
 // ── HELPERS ──────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -339,16 +341,33 @@ window.submitSale = async function() {
     notes:     $('notes').value.trim() || null
   };
 
-  const { error } = await db.from('sales').insert(sale);
-  if (error) { toast('Error saving. Try again.'); btn.disabled=false; btn.textContent='Log sale'; return; }
-
-  toast('✓ ' + cart.map(i=>i.l).join(' + '));
-  resetForm();
-  btn.disabled = false; btn.textContent = 'Log sale';
+  if (editingId) {
+    const { error } = await db.from('sales').update({
+      products:  sale.products,  labels:    sale.labels,
+      type:      sale.type,      activated: sale.activated,
+      deposited: sale.deposited, deposit:   sale.deposit,
+      notes:     sale.notes
+    }).eq('id', editingId);
+    if (error) { toast('Error updating. Try again.'); btn.disabled=false; btn.textContent='Update sale'; return; }
+    toast('✓ Sale updated');
+    resetForm();
+    btn.disabled = false; btn.textContent = 'Log sale';
+    if (session.role === 'rep') goRep('feed');
+    else goLead('feed');
+  } else {
+    const { error } = await db.from('sales').insert(sale);
+    if (error) { toast('Error saving. Try again.'); btn.disabled=false; btn.textContent='Log sale'; return; }
+    toast('✓ ' + cart.map(i=>i.l).join(' + '));
+    resetForm();
+    btn.disabled = false; btn.textContent = 'Log sale';
+  }
 };
 
 function resetForm() {
+  editingId = null;
   cart = []; form = { act:false, dep:false, depAmt:null };
+  const logBtn = document.querySelector('#view-log .btn-primary');
+  if (logBtn) logBtn.textContent = 'Log sale';
   $('notes').value = '';
   $('cart-row').innerHTML = '';
   document.querySelectorAll('.in').forEach(e=>e.classList.remove('in'));
@@ -375,18 +394,20 @@ async function fetchSalesByDate(date) {
 }
 
 // ── FEED ─────────────────────────────────────────────────────────
-function buildFeedHTML(sales, canDelete=false) {
+function buildFeedHTML(sales, canDelete=false, allowEdit=false) {
   if (!sales.length) return '<div class="empty">No sales yet.<br>Be the first. 💪</div>';
   return sales.slice().reverse().map(s => {
+    salesCache[s.id] = s;
     const lbls = getLabels(s).join(' + ');
     const dep  = s.deposit ? ' $' + s.deposit : '';
     const badges = [];
     if (s.activated) badges.push('<span class="fb act">Activated ✓</span>');
     if (s.deposited) badges.push(`<span class="fb dep">Deposited${dep} ✓</span>`);
-    const time = s.sale_time ? s.sale_time.slice(0,5) : '';
-    const delBtn = canDelete
-      ? `<button class="feed-del" onclick="deleteSale('${s.id}')">✕</button>`
-      : '';
+    const time    = s.sale_time ? s.sale_time.slice(0,5) : '';
+    const canEdit = allowEdit && (session.role === 'lead' || s.rep_id === session.id);
+    const editBtn = canEdit   ? `<button class="feed-edit" onclick="openEditSale('${s.id}')">✎</button>` : '';
+    const delBtn  = canDelete ? `<button class="feed-del"  onclick="deleteSale('${s.id}')">✕</button>`  : '';
+    const actions = (editBtn || delBtn) ? `<div class="feed-actions">${editBtn}${delBtn}</div>` : '';
     return `<div class="feed-item">
       <div class="f-line ${s.type}"></div>
       <div class="f-body">
@@ -395,19 +416,19 @@ function buildFeedHTML(sales, canDelete=false) {
         <div class="f-meta">${s.rep_name||''}${s.notes?' · '+s.notes:''}</div>
         <div class="f-time">${time}</div>
       </div>
-      ${delBtn}
+      ${actions}
     </div>`;
   }).join('');
 }
 
 async function renderRepFeed() {
   const sales = await fetchSalesByDate(todayKey());
-  $('feed').innerHTML = buildFeedHTML(sales, false);
+  $('feed').innerHTML = buildFeedHTML(sales, false, true);
 }
 
 async function renderLeadFeed() {
   const sales = await fetchSalesByDate(feedDate);
-  $('lfeed').innerHTML = buildFeedHTML(sales, true);
+  $('lfeed').innerHTML = buildFeedHTML(sales, true, true);
   updateDatePill('lfeed-date', feedDate);
   $('lfeed-next').disabled = feedDate >= todayKey();
 }
@@ -419,6 +440,59 @@ window.deleteSale = async function(id) {
   toast('Sale removed');
   renderDash();
   renderLeadFeed();
+};
+
+window.openEditSale = function(id) {
+  const sale = salesCache[id];
+  if (!sale) return;
+
+  resetForm();
+  editingId = id;
+
+  // rebuild cart from saved products
+  (sale.products || []).forEach((p, i) => {
+    const el = $('pill-' + p);
+    if (!el) return;
+    cart.push({ p, t: el.dataset.t, s: el.dataset.s === 'true', l: sale.labels?.[i] || el.dataset.l });
+    el.classList.add('in');
+  });
+  syncCart();
+
+  // restore activation
+  if (sale.activated && hasCredit()) {
+    form.act = true;
+    $('tog-act').classList.add('on');
+  }
+
+  // restore deposit
+  if (sale.deposited && (hasSecured() || hasDebit())) {
+    form.dep = true;
+    $('tog-dep').classList.add('on');
+    $('dep-amt').style.display = 'block';
+    if (sale.deposit) {
+      form.depAmt = String(sale.deposit);
+      const presetBtn = document.querySelector(`.dep-btn[data-v="${parseInt(sale.deposit)}"]`);
+      if (presetBtn) presetBtn.classList.add('on');
+      else $('dep-custom').value = sale.deposit;
+    }
+  }
+
+  $('notes').value = sale.notes || '';
+
+  // navigate to log view first (prepareLogForm runs inside)
+  if (session.role === 'rep') goRep('log');
+  else goLead('log');
+
+  // override header and rep display for edit context
+  $('log-context').textContent = sale.rep_name + ' · Edit sale';
+  if (session.role === 'lead') {
+    $('log-rep-selector').style.display = 'none';
+    $('log-rep-name').style.display     = 'block';
+    $('rep-name-static').textContent    = sale.rep_name;
+  }
+
+  const btn = document.querySelector('#view-log .btn-primary');
+  if (btn) btn.textContent = 'Update sale';
 };
 
 // ── DATE NAV ─────────────────────────────────────────────────────
@@ -566,7 +640,7 @@ async function renderRepStats() {
       <div class="wb-day">${x.d}</div>
     </div>`).join('');
 
-  $('stats-feed').innerHTML = buildFeedHTML(mine, false);
+  $('stats-feed').innerHTML = buildFeedHTML(mine, false, true);
 }
 
 // ── MANAGE ───────────────────────────────────────────────────────
