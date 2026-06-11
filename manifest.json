@@ -1,0 +1,14 @@
+{
+  "name": "Neo Tracker",
+  "short_name": "Neo",
+  "description": "Neo Financial · Carrefour Laval Sales Tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2F5FA",
+  "theme_color": "#F2F5FA",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

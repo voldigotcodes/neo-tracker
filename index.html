@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Neo">
+<meta name="theme-color" content="#F2F5FA">
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
+<title>Neo · Tracker</title>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     LOGIN
+══════════════════════════════════════════════════════ -->
+<div id="view-login" class="view active">
+  <div class="login-wrap">
+    <div class="login-logo">ne<em>o</em></div>
+    <div class="login-sub">Carrefour Laval · Sales Tracker</div>
+    <div class="login-card">
+      <div class="login-title">Sign in</div>
+      <input class="login-field" type="email"    id="login-email" placeholder="Email address"  autocomplete="email" inputmode="email">
+      <input class="login-field" type="password" id="login-pin"   placeholder="PIN"            autocomplete="current-password" inputmode="numeric" maxlength="6">
+      <div class="login-err" id="login-err">Incorrect email or PIN. Try again.</div>
+      <button class="btn-primary" id="login-btn" onclick="doLogin()">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     REP APP
+══════════════════════════════════════════════════════ -->
+<div id="rep-app" style="display:none">
+
+  <!-- LOG SALE -->
+  <div id="view-log" class="view active">
+    <div class="page-top">
+      <div><div class="neo-logo">ne<em>o</em></div><div class="page-context" id="rep-context">Carrefour Laval · Log a sale</div></div>
+      <div class="today-pill" id="log-date"></div>
+    </div>
+
+    <span class="sec first">Your name</span>
+    <div class="field-wrap">
+      <select class="field" id="rep-select">
+        <option value="">Select rep…</option>
+      </select>
+      <svg viewBox="0 0 14 14"><polyline points="2,4 7,10 12,4"/></svg>
+    </div>
+
+    <span class="sec">Products <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--text3)">— tap to add</span></span>
+    <div class="cart-row" id="cart-row"></div>
+
+    <!-- Credit -->
+    <div class="cat-card">
+      <div class="cat-hdr" onclick="toggleCat('credit')">
+        <div class="cat-dot credit"></div>
+        <div class="cat-name">Credit Card</div>
+        <div class="cat-meta" id="cart-credit-count"></div>
+        <svg class="cat-chev" id="chev-credit" viewBox="0 0 16 16"><polyline points="3,6 8,11 13,6"/></svg>
+      </div>
+      <div class="cat-sep" id="sep-credit" style="display:none"></div>
+      <div class="cat-body" id="body-credit">
+        <div class="tier">
+          <div class="tier-hdr" onclick="toggleTier('std')">
+            <div class="tier-ico">🪪</div><div class="tier-name">Standard</div>
+            <svg class="tier-chev" id="tchev-std" viewBox="0 0 13 13"><polyline points="2,4 6.5,9 11,4"/></svg>
+          </div>
+          <div class="tier-opts" id="topts-std">
+            <div class="prod" id="pill-StdCredit" data-p="StdCredit" data-t="credit" data-s="false" data-l="Standard Unsecured" onclick="addCart(this)">Unsecured<sub>Neo Mastercard</sub></div>
+            <div class="prod" id="pill-SecCard"   data-p="SecCard"   data-t="credit" data-s="true"  data-l="Standard Secured"   onclick="addCart(this)">Secured<sub>Neo Mastercard</sub></div>
+          </div>
+        </div>
+        <div class="tier">
+          <div class="tier-hdr" onclick="toggleTier('world')">
+            <div class="tier-ico">🌐</div><div class="tier-name">World</div>
+            <svg class="tier-chev" id="tchev-world" viewBox="0 0 13 13"><polyline points="2,4 6.5,9 11,4"/></svg>
+          </div>
+          <div class="tier-opts" id="topts-world">
+            <div class="prod" id="pill-W"    data-p="W"    data-t="credit" data-s="false" data-l="World Unsecured" onclick="addCart(this)">Unsecured<sub>Neo World MC</sub></div>
+            <div class="prod" id="pill-SecW" data-p="SecW" data-t="credit" data-s="true"  data-l="World Secured"   onclick="addCart(this)">Secured<sub>Neo World MC</sub></div>
+          </div>
+        </div>
+        <div class="tier">
+          <div class="tier-hdr" onclick="toggleTier('elite')">
+            <div class="tier-ico">⭐</div><div class="tier-name">World Elite</div>
+            <svg class="tier-chev" id="tchev-elite" viewBox="0 0 13 13"><polyline points="2,4 6.5,9 11,4"/></svg>
+          </div>
+          <div class="tier-opts" id="topts-elite">
+            <div class="prod" id="pill-WE"    data-p="WE"    data-t="credit" data-s="false" data-l="World Elite Unsecured" onclick="addCart(this)">Unsecured<sub>Neo World Elite MC</sub></div>
+            <div class="prod" id="pill-SecWE" data-p="SecWE" data-t="credit" data-s="true"  data-l="World Elite Secured"   onclick="addCart(this)">Secured<sub>Neo World Elite MC</sub></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Debit -->
+    <div class="cat-card">
+      <div class="cat-hdr" onclick="toggleCat('debit')">
+        <div class="cat-dot debit"></div>
+        <div class="cat-name">Money Account</div>
+        <div class="cat-meta" id="cart-debit-count"></div>
+        <svg class="cat-chev" id="chev-debit" viewBox="0 0 16 16"><polyline points="3,6 8,11 13,6"/></svg>
+      </div>
+      <div class="cat-sep" id="sep-debit" style="display:none"></div>
+      <div class="cat-body" id="body-debit">
+        <div class="money-row" id="pill-Money" data-p="Money" data-t="debit" data-s="false" data-l="Neo Money Account" onclick="addCart(this)">
+          <div class="money-ico">💳</div>
+          <div><div class="money-name">Neo Money</div><div class="money-sub">Everyday spending account</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activation -->
+    <div id="q-act" style="display:none">
+      <span class="sec">Activation</span>
+      <div class="q-card">
+        <div class="q-row">
+          <div><div class="q-lbl">Activated?</div><div class="q-sub">Customer made their first spend on the card</div></div>
+          <button class="tog" id="tog-act" onclick="togField('act')"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deposit -->
+    <div id="q-dep" style="display:none">
+      <span class="sec">Deposit</span>
+      <div class="q-card">
+        <div class="q-row">
+          <div><div class="q-lbl" id="dep-title">Money deposited?</div><div class="q-sub" id="dep-sub">Customer added funds</div></div>
+          <button class="tog" id="tog-dep" onclick="togField('dep')"></button>
+        </div>
+        <div id="dep-amt" style="display:none">
+          <div class="dep-inner">
+            <div class="dep-lbl">Amount</div>
+            <div class="dep-grid">
+              <div class="dep-btn" data-v="25"  onclick="pickDep(this)">$25</div>
+              <div class="dep-btn" data-v="50"  onclick="pickDep(this)">$50</div>
+              <div class="dep-btn" data-v="100" onclick="pickDep(this)">$100</div>
+              <div class="dep-btn" data-v="200" onclick="pickDep(this)">$200</div>
+            </div>
+            <input class="dep-custom" type="number" id="dep-custom" placeholder="Other amount…" min="0">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <span class="sec">Notes <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--text3)">— optional</span></span>
+    <div class="field-wrap">
+      <textarea class="field" id="notes" rows="2" placeholder="Secured card pivot, follow-up…"></textarea>
+    </div>
+    <div class="btn-wrap"><button class="btn-primary" onclick="submitSale()">Log sale</button></div>
+  </div>
+
+  <!-- FEED -->
+  <div id="view-feed" class="view">
+    <div class="page-top">
+      <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Live feed · today</div></div>
+      <div class="today-pill" id="feed-date"></div>
+    </div>
+    <div class="card"><div class="card-pad" id="feed"><div class="empty">No sales yet today.<br>Be the first. 💪</div></div></div>
+  </div>
+
+  <!-- REP NAV -->
+  <nav class="nav" id="rep-nav">
+    <button class="nav-btn active" id="nav-log" onclick="goRep('log')">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>Log
+    </button>
+    <button class="nav-btn" id="nav-feed" onclick="goRep('feed')">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6" stroke-linecap="round"/><line x1="4" y1="12" x2="20" y2="12" stroke-linecap="round"/><line x1="4" y1="18" x2="14" y2="18" stroke-linecap="round"/></svg>Feed
+    </button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     LEAD APP
+══════════════════════════════════════════════════════ -->
+<div id="lead-app" style="display:none">
+
+  <!-- DASHBOARD -->
+  <div id="lview-dash" class="view active">
+    <div class="page-top">
+      <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Carrefour Laval · Dashboard</div></div>
+      <div class="today-pill" id="dash-date"></div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi" id="kpi-tot"><div class="kpi-val" id="k-tot">0</div><div class="kpi-lbl">Total sales</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-tgt">—</div><div class="kpi-lbl">Today's target</div></div>
+      <div class="kpi" id="kpi-d0"><div class="kpi-val" id="k-d0">0%</div><div class="kpi-lbl">D0 rate</div></div>
+      <div class="kpi" id="kpi-cr"><div class="kpi-val" id="k-cr">0%</div><div class="kpi-lbl">Credit mix</div></div>
+    </div>
+
+    <div class="card"><div class="card-pad">
+      <div class="card-title">vs targets</div>
+      <div class="prog-row"><div class="prog-lbl">Sales</div><div class="prog-track"><div class="prog-fill" id="pf-s" style="width:0%"></div></div><div class="prog-val" id="pv-s">0</div></div>
+      <div class="prog-row"><div class="prog-lbl">D0 rate</div><div class="prog-track"><div class="prog-fill" id="pf-d" style="width:0%"></div></div><div class="prog-val" id="pv-d">0%</div></div>
+      <div class="prog-row"><div class="prog-lbl">Credit mix</div><div class="prog-track"><div class="prog-fill" id="pf-c" style="width:0%"></div></div><div class="prog-val" id="pv-c">0%</div></div>
+    </div></div>
+
+    <div class="card"><div class="card-pad">
+      <div class="card-title">This week</div>
+      <div class="week" id="week"></div>
+    </div></div>
+
+    <div class="section-hdr">Rep breakdown · today</div>
+    <div class="card"><div class="card-pad" id="rep-bd"><div class="empty">No sales logged today yet.</div></div></div>
+  </div>
+
+  <!-- FEED (lead) -->
+  <div id="lview-feed" class="view">
+    <div class="page-top">
+      <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Live feed · today</div></div>
+      <div class="today-pill" id="lfeed-date"></div>
+    </div>
+    <div class="card"><div class="card-pad" id="lfeed"><div class="empty">No sales yet today.</div></div></div>
+  </div>
+
+  <!-- MANAGE -->
+  <div id="lview-manage" class="view">
+    <div class="page-top">
+      <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Manage · Team &amp; Targets</div></div>
+      <div class="today-pill" id="manage-date"></div>
+    </div>
+
+    <!-- Targets -->
+    <span class="sec first">Daily targets</span>
+    <div class="card"><div class="card-pad" id="targets-form">
+      <!-- rendered by JS -->
+    </div></div>
+    <div class="btn-wrap" style="margin-bottom:10px">
+      <button class="btn-primary" onclick="saveTargets()">Save targets</button>
+    </div>
+
+    <!-- Add rep -->
+    <span class="sec">Add rep</span>
+    <div class="card"><div class="card-pad" style="display:flex;flex-direction:column;gap:10px">
+      <input class="field" style="padding:12px 14px;border-radius:var(--rs);border:1.5px solid var(--border2);background:var(--bg);width:100%;font-size:14px;outline:none;" type="text"     id="new-rep-name"  placeholder="Full name">
+      <input class="field" style="padding:12px 14px;border-radius:var(--rs);border:1.5px solid var(--border2);background:var(--bg);width:100%;font-size:14px;outline:none;" type="email"    id="new-rep-email" placeholder="Email address" inputmode="email">
+      <input class="field" style="padding:12px 14px;border-radius:var(--rs);border:1.5px solid var(--border2);background:var(--bg);width:100%;font-size:14px;outline:none;" type="password" id="new-rep-pin"   placeholder="PIN (4–6 digits)" inputmode="numeric" maxlength="6">
+      <div style="display:flex;gap:8px">
+        <select class="field" id="new-rep-role" style="flex:1;padding:12px 14px;border-radius:var(--rs);border:1.5px solid var(--border2);background:var(--bg);font-size:14px;outline:none;appearance:none;">
+          <option value="rep">Sales Rep</option>
+          <option value="lead">Mall Lead</option>
+        </select>
+        <button class="btn-primary" style="flex:1" onclick="addRep()">Add</button>
+      </div>
+    </div></div>
+
+    <!-- Rep list -->
+    <span class="sec">Team roster</span>
+    <div class="card"><div class="card-pad" id="rep-list"><div class="empty">Loading…</div></div></div>
+
+    <!-- Account / logout -->
+    <span class="sec">Account</span>
+    <div class="card">
+      <div class="logout-row">
+        <span id="lead-email-display"></span>
+        <button class="btn-logout" onclick="doLogout()">Sign out</button>
+      </div>
+    </div>
+    <div style="height:16px"></div>
+  </div>
+
+  <!-- LEAD NAV -->
+  <nav class="nav" id="lead-nav">
+    <button class="nav-btn active" id="lnav-dash" onclick="goLead('dash')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Dashboard
+    </button>
+    <button class="nav-btn" id="lnav-feed" onclick="goLead('feed')">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6" stroke-linecap="round"/><line x1="4" y1="12" x2="20" y2="12" stroke-linecap="round"/><line x1="4" y1="18" x2="14" y2="18" stroke-linecap="round"/></svg>Feed
+    </button>
+    <button class="nav-btn" id="lnav-manage" onclick="goLead('manage')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round"/></svg>Manage
+    </button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>
