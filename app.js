@@ -568,7 +568,7 @@ window.openEditSale = function(id) {
   syncCart();
 
   // restore activation
-  if (sale.activated && hasCredit()) {
+  if (sale.activated && (hasCredit() || cart.some(i => i.p === 'Money'))) {
     form.act = true;
     $('tog-act').classList.add('on');
   }
