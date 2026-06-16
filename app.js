@@ -345,7 +345,7 @@ function syncCart() {
   $('cart-credit-count').textContent = cc ? cc+' selected' : '';
   $('cart-debit-count').textContent  = dc ? 'Added' : '';
 
-  const needAct = hasCredit();
+  const needAct = hasCredit() || cart.some(i => i.p === 'Money');
   const needDep = hasSecured() || hasDebit();
   $('q-act').style.display = needAct ? 'block' : 'none';
   if (!needAct) { form.act=false; $('tog-act').classList.remove('on'); }
