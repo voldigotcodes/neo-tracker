@@ -233,7 +233,11 @@
   <div id="view-stats" class="view">
     <div class="page-top">
       <div><div class="neo-logo">ne<em>o</em></div><div class="page-context" id="stats-context">My stats</div></div>
-      <div class="today-pill" id="stats-date"></div>
+      <div class="date-nav">
+        <button class="date-nav-btn" onclick="shiftStatsDate(-1)">‹</button>
+        <div class="today-pill" id="stats-date"></div>
+        <button class="date-nav-btn" id="stats-next" onclick="shiftStatsDate(1)" disabled>›</button>
+      </div>
     </div>
 
     <div class="kpi-grid">
@@ -290,7 +294,7 @@
       <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Dashboard</div></div>
       <div class="date-nav">
         <button class="date-nav-btn" onclick="shiftDashDate(-1)">‹</button>
-        <div class="today-pill" id="dash-date"></div>
+        <div class="today-pill today-pill-tap" id="dash-date" onclick="openCal('dash')"></div>
         <button class="date-nav-btn" id="dash-next" onclick="shiftDashDate(1)" disabled>›</button>
       </div>
     </div>
@@ -324,7 +328,7 @@
       <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Live feed</div></div>
       <div class="date-nav">
         <button class="date-nav-btn" onclick="shiftFeedDate(-1)">‹</button>
-        <div class="today-pill" id="lfeed-date"></div>
+        <div class="today-pill today-pill-tap" id="lfeed-date" onclick="openCal('feed')"></div>
         <button class="date-nav-btn" id="lfeed-next" onclick="shiftFeedDate(1)" disabled>›</button>
       </div>
     </div>
@@ -416,6 +420,17 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- ── DATE PICKER CALENDAR ─────────────────────────────────── -->
+<div id="cal-overlay" onclick="closeCal()" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.4)"></div>
+<div id="cal-popup" style="display:none">
+  <div class="cal-hdr">
+    <button class="cal-nav-btn" id="cal-prev" onclick="calShiftMonth(-1)">‹</button>
+    <span id="cal-month"></span>
+    <button class="cal-nav-btn" id="cal-next" onclick="calShiftMonth(1)">›</button>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+</div>
 
 <script type="module" src="/app.js"></script>
 </body>

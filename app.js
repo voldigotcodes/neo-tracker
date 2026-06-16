@@ -16,7 +16,11 @@ let form       = { act: false, dep: false, depAmt: null };
 let realtimeCh = null;
 let dashDate   = '';
 let feedDate   = '';
+let statsDate  = '';
 let editingId  = null;   // sale ID being edited, null = new sale
+let calTarget  = null;   // 'dash' | 'feed' — which date the calendar controls
+let calMonth   = '';     // 'YYYY-MM' currently displayed in calendar
+let calActive  = new Set(); // sale_dates that have at least one sale
 let salesCache = {};     // id → sale object, populated by feed renders
 let cxInterested = [];   // interested_in chips selected on the add-contact form
 
@@ -123,8 +127,9 @@ async function bootApp() {
   const { data: mall } = await db.from('malls').select('targets').eq('id', MALL_ID).single();
   if (mall?.targets) targets = mall.targets;
 
-  dashDate = todayKey();
-  feedDate = todayKey();
+  dashDate  = todayKey();
+  feedDate  = todayKey();
+  statsDate = todayKey();
 
   await populateRepSelect();
 
@@ -254,8 +259,7 @@ function prepareLogForm() {
   $('log-context').textContent = session.name + ' · Log a sale';
   if (session.role === 'rep') {
     $('log-rep-selector').style.display = 'none';
-    $('log-rep-name').style.display     = 'block';
-    $('rep-name-static').textContent    = session.name;
+    $('log-rep-name').style.display     = 'none';
   } else {
     $('log-rep-selector').style.display = 'block';
     $('log-rep-name').style.display     = 'none';
@@ -548,6 +552,93 @@ window.shiftFeedDate = function(n) {
   renderLeadFeed();
 };
 
+window.shiftStatsDate = function(n) {
+  const next = shiftDateStr(statsDate, n);
+  if (next > todayKey()) return;
+  statsDate = next;
+  renderRepStats();
+};
+
+// ── DATE PICKER CALENDAR ─────────────────────────────────────────
+window.openCal = async function(target) {
+  calTarget = target;
+  const current = target === 'dash' ? dashDate : feedDate;
+  calMonth = current.slice(0, 7);
+  await fetchCalActive();
+  renderCal(current);
+  $('cal-overlay').style.display = 'block';
+  $('cal-popup').style.display   = 'block';
+};
+
+window.closeCal = function() {
+  $('cal-overlay').style.display = 'none';
+  $('cal-popup').style.display   = 'none';
+};
+
+async function fetchCalActive() {
+  const [y, m] = calMonth.split('-').map(Number);
+  const from  = `${calMonth}-01`;
+  const last  = new Date(y, m, 0).getDate();
+  const to    = `${calMonth}-${String(last).padStart(2,'0')}`;
+  const { data } = await db.from('sales')
+    .select('sale_date').eq('mall_id', MALL_ID)
+    .gte('sale_date', from).lte('sale_date', to);
+  calActive = new Set((data||[]).map(s => s.sale_date));
+}
+
+function renderCal(selectedDate) {
+  const [y, m] = calMonth.split('-').map(Number);
+  const first  = new Date(y, m-1, 1);
+  const lastD  = new Date(y, m, 0).getDate();
+  const today  = todayKey();
+  const nowM   = today.slice(0,7);
+
+  $('cal-month').textContent = first.toLocaleDateString('en-CA', { month:'long', year:'numeric' });
+  $('cal-prev').disabled  = false;
+  $('cal-next').disabled  = calMonth >= nowM;
+
+  // Mon-first offset
+  let startDow = first.getDay();
+  startDow = startDow === 0 ? 6 : startDow - 1;
+
+  let html = ['Mo','Tu','We','Th','Fr','Sa','Su']
+    .map(d => `<div class="cal-dh">${d}</div>`).join('');
+
+  for (let i = 0; i < startDow; i++) html += '<div class="cal-day cal-empty"></div>';
+
+  for (let d = 1; d <= lastD; d++) {
+    const ds  = `${calMonth}-${String(d).padStart(2,'0')}`;
+    const fut = ds > today;
+    const act = calActive.has(ds);
+    const sel = ds === selectedDate;
+    const now = ds === today;
+    let cls   = 'cal-day';
+    if (fut)      cls += ' cal-future';
+    else if (!act) cls += ' cal-inactive';
+    if (sel)      cls += ' cal-sel';
+    if (now&&!sel) cls += ' cal-today';
+    html += `<div class="${cls}" ${!fut ? `onclick="calPick('${ds}')"` : ''}>${d}</div>`;
+  }
+  $('cal-grid').innerHTML = html;
+}
+
+window.calShiftMonth = async function(n) {
+  const [y, m] = calMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  const next = d.toISOString().slice(0,7);
+  if (next > todayKey().slice(0,7)) return;
+  calMonth = next;
+  await fetchCalActive();
+  const sel = calTarget === 'dash' ? dashDate : feedDate;
+  renderCal(sel);
+};
+
+window.calPick = function(date) {
+  if (calTarget === 'dash') { dashDate = date; renderDash(); }
+  else                      { feedDate = date; renderLeadFeed(); }
+  closeCal();
+};
+
 // ── DASHBOARD ────────────────────────────────────────────────────
 async function renderDash() {
   const today = await fetchSalesByDate(dashDate);
@@ -635,10 +726,12 @@ async function renderDash() {
 // ── REP STATS ─────────────────────────────────────────────────────
 async function renderRepStats() {
   $('stats-context').textContent = session.name;
-  const today = await fetchSalesByDate(todayKey());
+  const today = await fetchSalesByDate(statsDate);
   const mine  = today.filter(s => s.rep_id === session.id);
-  const dow   = new Date().getDay();
+  const dow   = new Date(statsDate + 'T12:00:00').getDay();
   const tgt   = targets[dow] || 10;
+  updateDatePill('stats-date', statsDate);
+  $('stats-next').disabled = statsDate >= todayKey();
   const tot   = mine.length;
   const d0s   = mine.filter(s=>s.activated).length;
   const crs   = mine.filter(s=>s.type==='credit').length;
@@ -663,12 +756,11 @@ async function renderRepStats() {
   const monKey = mon.toISOString().slice(0,10);
   const { data: weekData } = await db.from('sales')
     .select('sale_date').eq('mall_id', MALL_ID).eq('rep_id', session.id).gte('sale_date', monKey);
-  const tk = todayKey();
   const wd = DAY_SHORT.map((d,i) => {
     const dt  = new Date(mon); dt.setDate(mon.getDate()+i);
     const k   = dt.toISOString().slice(0,10);
     const cnt = (weekData||[]).filter(s=>s.sale_date===k).length;
-    return { d, cnt, cur: k===tk, fut: dt>now };
+    return { d, cnt, cur: k===statsDate, fut: dt>now };
   });
   const mx = Math.max(...wd.map(x=>x.cnt), 1);
   $('stats-week').innerHTML = wd.map(x=>`
