@@ -89,7 +89,7 @@
       </div>
       <div class="tier">
         <div class="tier-hdr" onclick="toggleTier('elite')">
-          <div class="tier-ico">⭐</div><div class="tier-name">World Elite</div>
+          <div class="tier-ico">⭐</div><div class="tier-name">World Elite</div><span style="font-size:10px;font-weight:600;color:#B45309;background:#FEF3C7;border-radius:8px;padding:2px 7px;margin-right:4px">$149/yr</span>
           <svg class="tier-chev" id="tchev-elite" viewBox="0 0 13 13"><polyline points="2,4 6.5,9 11,4"/></svg>
         </div>
         <div class="tier-opts" id="topts-elite">
@@ -110,9 +110,13 @@
     </div>
     <div class="cat-sep" id="sep-debit" style="display:none"></div>
     <div class="cat-body" id="body-debit">
-      <div class="money-row" id="pill-Money" data-p="Money" data-t="debit" data-s="false" data-l="Neo Money Account" onclick="addCart(this)">
+      <div class="money-row" id="pill-Money" data-p="Money" data-t="debit" data-s="false" data-l="Neo Money" onclick="addCart(this)">
         <div class="money-ico">💳</div>
         <div><div class="money-name">Neo Money</div><div class="money-sub">Everyday spending account</div></div>
+      </div>
+      <div class="money-row" id="pill-Savings" data-p="Savings" data-t="debit" data-s="false" data-l="Neo Savings" onclick="addCart(this)">
+        <div class="money-ico">🏦</div>
+        <div><div class="money-name">Neo Savings</div><div class="money-sub">Up to 3% interest · tiered balance</div></div>
       </div>
     </div>
   </div>

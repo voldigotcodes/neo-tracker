@@ -281,8 +281,20 @@ function hasDebit()   { return cart.some(i=>i.t==='debit'); }
 
 window.addCart = function(el) {
   const p = el.dataset.p;
-  if (cart.find(i=>i.p===p)) return;
-  cart.push({ p, t: el.dataset.t, s: el.dataset.s==='true', l: el.dataset.l });
+  const t = el.dataset.t;
+  // Tap selected item → deselect it
+  if (cart.find(i=>i.p===p)) {
+    cart = cart.filter(i=>i.p!==p);
+    el.classList.remove('in');
+    syncCart();
+    return;
+  }
+  // Credit cards: only one at a time — swap out the existing one
+  if (t === 'credit') {
+    cart.filter(i=>i.t==='credit').forEach(i => { const e=$('pill-'+i.p); if(e) e.classList.remove('in'); });
+    cart = cart.filter(i=>i.t!=='credit');
+  }
+  cart.push({ p, t, s: el.dataset.s==='true', l: el.dataset.l });
   el.classList.add('in');
   syncCart();
 };
@@ -306,11 +318,22 @@ function syncCart() {
   $('q-act').style.display = needAct ? 'block' : 'none';
   if (!needAct) { form.act=false; $('tog-act').classList.remove('on'); }
   $('q-dep').style.display = needDep ? 'block' : 'none';
-  if (!needDep) { form.dep=false; form.depAmt=null; $('tog-dep').classList.remove('on'); $('dep-amt').style.display='none'; resetDepBtns(); }
+  if (!needDep) { form.dep=false; form.depAmt=null; $('tog-dep').classList.remove('on'); $('dep-amt').style.display='none'; resetDepBtns(); $('tog-dep').style.opacity=''; $('tog-dep').style.pointerEvents=''; }
   if (needDep) {
     const secOnly = hasSecured() && !hasDebit();
     $('dep-title').textContent = secOnly ? 'Security deposit made?' : 'Money deposited?';
     $('dep-sub').textContent   = secOnly ? 'Customer put down their security deposit' : 'Customer added funds to their account';
+    // Secured card → deposit is mandatory: auto-enable, show amount picker, lock toggle
+    if (hasSecured()) {
+      form.dep = true;
+      $('tog-dep').classList.add('on');
+      $('dep-amt').style.display = 'block';
+      $('tog-dep').style.opacity = '0.5';
+      $('tog-dep').style.pointerEvents = 'none';
+    } else {
+      $('tog-dep').style.opacity = '';
+      $('tog-dep').style.pointerEvents = '';
+    }
   }
 }
 
@@ -340,6 +363,7 @@ window.submitSale = async function() {
     if (!repId) { toast('Select a rep first'); return; }
   }
   if (!cart.length) { toast('Select at least one product'); return; }
+  if (hasSecured() && !form.depAmt) { toast('Enter the security deposit amount'); return; }
 
   const btn = document.querySelector('#view-log .btn-primary');
   btn.disabled = true; btn.textContent = 'Logging…';
@@ -386,6 +410,7 @@ function resetForm() {
   document.querySelectorAll('.in').forEach(e=>e.classList.remove('in'));
   ['q-act','q-dep'].forEach(id => $(id).style.display='none');
   $('tog-act').classList.remove('on'); $('tog-dep').classList.remove('on');
+  $('tog-dep').style.opacity=''; $('tog-dep').style.pointerEvents='';
   $('dep-amt').style.display='none'; resetDepBtns(); $('dep-custom').value='';
   $('cart-credit-count').textContent=''; $('cart-debit-count').textContent='';
   ['credit','debit'].forEach(c => {
