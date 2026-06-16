@@ -15,8 +15,8 @@ create table if not exists malls (
   created_at  timestamptz default now()
 );
 
--- Insert Carrefour Laval
-insert into malls (name, location) values ('Carrefour Laval', 'Laval, QC');
+-- Insert CF Promenade St-Bruno
+insert into malls (name, location) values ('CF Promenade St-Bruno', 'St-Bruno-de-Montarville, QC');
 
 -- ── REPS ───────────────────────────────────────────────────────────
 create table if not exists reps (

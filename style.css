@@ -542,6 +542,49 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 0 16px 10px;
   border-color: var(--blue);
 }
 
+/* ── BACK BUTTON ───────────────────────────────────────────────── */
+.btn-back {
+  font-size: 14px; font-weight: 700; color: var(--blue);
+  background: none; border: none; cursor: pointer; padding: 0;
+}
+
+/* ── REP PROFILE FULL PAGE ─────────────────────────────────────── */
+.profile-hdr { display:flex; align-items:center; gap:12px; padding:4px 20px 14px; }
+.profile-name { font-size:17px; font-weight:700; color:var(--text); }
+.profile-sub  { font-size:12px; color:var(--text2); margin-top:2px; }
+
+/* ── MODAL EXPAND BUTTON ───────────────────────────────────────── */
+.modal-expand-btn {
+  width:32px; height:32px; border-radius:50%;
+  border:1.5px solid var(--border2); background:var(--bg);
+  color:var(--text2); font-size:15px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; transition:opacity .15s;
+}
+.modal-expand-btn:active { opacity:.6; }
+
+/* ── REP PROFILE MODAL ─────────────────────────────────────────── */
+.modal-hdr-rep { display:flex; align-items:center; gap:12px; padding:16px 20px 12px; }
+.modal-period-row { display:flex; gap:6px; padding:0 20px 14px; }
+.modal-period-btn {
+  flex:1; padding:7px 0; border-radius:20px;
+  border:1.5px solid var(--border2); background:transparent;
+  color:var(--text2); font-size:13px; font-weight:600; cursor:pointer;
+  transition: all .15s;
+}
+.modal-period-btn.active { background:var(--black); color:#fff; border-color:var(--black); }
+.modal-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:14px 20px; }
+.modal-kpi { background:var(--bg); border-radius:var(--rs); padding:12px 10px; }
+.modal-kpi-val { font-size:22px; font-weight:800; letter-spacing:-.5px; color:var(--text); }
+.modal-kpi-lbl { font-size:11px; font-weight:500; color:var(--text2); margin-top:3px; }
+.modal-bd-row { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+.modal-bd-name { font-size:12px; font-weight:500; color:var(--text); width:110px; flex-shrink:0; }
+.modal-bd-track { flex:1; height:5px; background:var(--bg2); border-radius:3px; overflow:hidden; }
+.modal-bd-fill { height:100%; border-radius:3px; transition:width .3s; }
+.modal-bd-blue  { background:var(--blue); }
+.modal-bd-green { background:var(--green); }
+.modal-bd-count { font-size:12px; font-weight:700; color:var(--text2); width:20px; text-align:right; }
+
 /* ── DATE PICKER CALENDAR ──────────────────────────────────────── */
 .today-pill-tap { cursor: pointer; }
 .today-pill-tap:active { opacity: .7; }
@@ -591,3 +634,22 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 0 16px 10px;
 .cal-today:not(.cal-sel) { color: var(--blue); font-weight: 700; }
 .cal-future   { opacity: .2; cursor: not-allowed; pointer-events: none; }
 .cal-empty    { pointer-events: none; }
+
+/* ── DISABLE / DELETE REP ─────────────────────────────────────── */
+.mrep-row-disabled { opacity: .55; }
+.rep-av-disabled   { background: var(--bg2); color: var(--text3); }
+.mrep-tag-disabled {
+  font-size: 10px; font-weight: 700;
+  background: var(--amber-faint); color: var(--amber);
+  padding: 2px 7px; border-radius: 20px;
+  vertical-align: middle; margin-left: 5px;
+}
+.btn-disable {
+  font-size: 12px; font-weight: 700;
+  color: var(--amber); background: var(--amber-faint);
+  border: none; border-radius: 20px;
+  padding: 5px 12px; cursor: pointer; flex-shrink: 0;
+}
+.btn-delete-rep {
+  background: var(--red-faint); color: var(--red);
+}

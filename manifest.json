@@ -1,7 +1,7 @@
 {
   "name": "Neo Tracker",
   "short_name": "Neo",
-  "description": "Neo Financial · Carrefour Laval Sales Tracker",
+  "description": "Neo Financial · CF Promenade St-Bruno Sales Tracker",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

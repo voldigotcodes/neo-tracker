@@ -97,6 +97,12 @@ window.doLogin = async function() {
     if (error || !data) throw new Error('Not found');
     session = data;
     sessionStorage.setItem('neo_session', JSON.stringify(data));
+    if (data.must_change_pin) {
+      $('view-login').classList.remove('active');
+      $('view-change-pin').classList.add('active');
+      btn.disabled = false; btn.textContent = 'Sign in';
+      return;
+    }
     await bootApp();
   } catch {
     err.textContent = 'Incorrect email or PIN. Try again.';
@@ -119,6 +125,28 @@ window.doLogout = function() {
   $('login-btn').disabled = false; $('login-btn').textContent = 'Sign in';
   $('login-err').classList.remove('show');
   resetForm();
+};
+
+// ── CHANGE PIN ───────────────────────────────────────────────────
+window.doChangePin = async function() {
+  const newPin  = $('pin-new').value.trim();
+  const confirm = $('pin-confirm').value.trim();
+  const err     = $('pin-err');
+  const btn     = $('pin-btn');
+  err.classList.remove('show');
+  if (newPin.length < 4)        { err.textContent = 'PIN must be 4–6 digits.'; err.classList.add('show'); return; }
+  if (newPin !== confirm)       { err.textContent = 'PINs don\'t match.';      err.classList.add('show'); return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const pin_hash = await hashPin(newPin);
+  const { error } = await db.from('reps')
+    .update({ pin_hash, must_change_pin: false }).eq('id', session.id);
+  if (error) { err.textContent = 'Error saving. Try again.'; err.classList.add('show'); btn.disabled=false; btn.textContent='Set PIN & continue'; return; }
+  session.must_change_pin = false;
+  session.pin_hash = pin_hash;
+  sessionStorage.setItem('neo_session', JSON.stringify(session));
+  $('view-change-pin').classList.remove('active');
+  $('pin-new').value = ''; $('pin-confirm').value = '';
+  await bootApp();
 };
 
 // ── BOOT ─────────────────────────────────────────────────────────
@@ -398,11 +426,46 @@ window.submitSale = async function() {
   } else {
     const { error } = await db.from('sales').insert(sale);
     if (error) { toast('Error saving. Try again.'); btn.disabled=false; btn.textContent='Log sale'; return; }
-    toast('✓ ' + cart.map(i=>i.l).join(' + '));
+    copyActivationMessage(cart, form);
+    toast('✓ Logged · message copied 📋');
     resetForm();
     btn.disabled = false; btn.textContent = 'Log sale';
   }
 };
+
+function copyActivationMessage(cartItems, f) {
+  const labelMap = {
+    'World Unsecured':       'W',
+    'World Secured':         'SecW',
+    'World Elite Unsecured': 'WE',
+    'World Elite Secured':   'SecWE',
+  };
+  const stdMap = {
+    'Standard Unsecured': 'Std Credit',
+    'Standard Secured':   'Sec Card',
+  };
+  const moneyLabels = ['Neo Money','Neo Savings'];
+
+  const labels = cartItems.map(i => i.l);
+  const weLabel  = labels.map(l => labelMap[l]).filter(Boolean).join(' + ');
+  const stdLabel = labels.map(l => stdMap[l]).filter(Boolean).join(' + ');
+  const moneyLabel = labels.filter(l => moneyLabels.includes(l)).join(' + ');
+  const deposit = f.dep && f.depAmt ? `$${f.depAmt}` : f.dep ? 'Yes' : 'N/A';
+
+  const msg = [
+    `Activation: mall`,
+    `Location: CF Promenade St-Bruno`,
+    `Was this a new Cx: Yes`,
+    `WE/W or SecWE/SecW: ${weLabel}`,
+    `Std Credit or Sec Card: ${stdLabel}`,
+    `Everyday Account: ${moneyLabel || 'No'}`,
+    `How much Deposit: ${deposit}`,
+    `Product: ${labels.length}`,
+    `Activated Y/N: ${f.act ? 'Y' : 'N'}`,
+  ].join('\n');
+
+  navigator.clipboard.writeText(msg).catch(() => {});
+}
 
 function resetForm() {
   editingId = null;
@@ -446,9 +509,14 @@ function buildFeedHTML(sales, canDelete=false, allowEdit=false) {
     if (s.activated) badges.push('<span class="fb act">Activated ✓</span>');
     if (s.deposited) badges.push(`<span class="fb dep">Deposited${dep} ✓</span>`);
     const time    = s.sale_time ? s.sale_time.slice(0,5) : '';
-    const canEdit = allowEdit && (session.role === 'lead' || s.rep_id === session.id);
-    const editBtn = canEdit   ? `<button class="feed-edit" onclick="openEditSale('${s.id}')">✎</button>` : '';
-    const delBtn  = canDelete ? `<button class="feed-del"  onclick="deleteSale('${s.id}')">✕</button>`  : '';
+    const daysDiff = Math.round((new Date(todayKey()+'T12:00:00') - new Date(s.sale_date+'T12:00:00')) / 86400000);
+    const withinWindow = session.role === 'lead' ? daysDiff <= 2 : daysDiff === 0;
+    const isOwn        = s.rep_id === session.id;
+    const canAct       = withinWindow && (session.role === 'lead' || isOwn);
+    const canEdit = allowEdit  && canAct;
+    const canDel  = canDelete  && canAct;
+    const editBtn = canEdit ? `<button class="feed-edit" onclick="openEditSale('${s.id}')">✎</button>` : '';
+    const delBtn  = canDel  ? `<button class="feed-del"  onclick="deleteSale('${s.id}')">✕</button>`  : '';
     const actions = (editBtn || delBtn) ? `<div class="feed-actions">${editBtn}${delBtn}</div>` : '';
     return `<div class="feed-item">
       <div class="f-line ${s.type}"></div>
@@ -465,14 +533,13 @@ function buildFeedHTML(sales, canDelete=false, allowEdit=false) {
 
 async function renderRepFeed() {
   const sales = await fetchSalesByDate(todayKey());
-  $('feed').innerHTML = buildFeedHTML(sales, false, true);
+  $('feed').innerHTML = buildFeedHTML(sales, true, true);
 }
 
 async function renderLeadFeed() {
-  const sales = await fetchSalesByDate(feedDate);
+  const sales = await fetchSalesByDate(todayKey());
   $('lfeed').innerHTML = buildFeedHTML(sales, true, true);
-  updateDatePill('lfeed-date', feedDate);
-  $('lfeed-next').disabled = feedDate >= todayKey();
+  updateDatePill('lfeed-date', todayKey());
 }
 
 window.deleteSale = async function(id) {
@@ -562,7 +629,7 @@ window.shiftStatsDate = function(n) {
 // ── DATE PICKER CALENDAR ─────────────────────────────────────────
 window.openCal = async function(target) {
   calTarget = target;
-  const current = target === 'dash' ? dashDate : feedDate;
+  const current = target === 'dash' ? dashDate : target === 'profile' ? profileDate : feedDate;
   calMonth = current.slice(0, 7);
   await fetchCalActive();
   renderCal(current);
@@ -606,36 +673,48 @@ function renderCal(selectedDate) {
 
   for (let i = 0; i < startDow; i++) html += '<div class="cal-day cal-empty"></div>';
 
+  const minDate = calTarget === 'dash' ? shiftDateStr(today, -2) : null;
+
   for (let d = 1; d <= lastD; d++) {
-    const ds  = `${calMonth}-${String(d).padStart(2,'0')}`;
-    const fut = ds > today;
-    const act = calActive.has(ds);
-    const sel = ds === selectedDate;
-    const now = ds === today;
-    let cls   = 'cal-day';
-    if (fut)      cls += ' cal-future';
-    else if (!act) cls += ' cal-inactive';
-    if (sel)      cls += ' cal-sel';
-    if (now&&!sel) cls += ' cal-today';
-    html += `<div class="${cls}" ${!fut ? `onclick="calPick('${ds}')"` : ''}>${d}</div>`;
+    const ds      = `${calMonth}-${String(d).padStart(2,'0')}`;
+    const fut     = ds > today;
+    const tooOld  = minDate && ds < minDate;
+    const blocked = fut || tooOld;
+    const act     = calActive.has(ds);
+    const sel     = ds === selectedDate;
+    const now     = ds === today;
+    let cls = 'cal-day';
+    if (blocked)       cls += ' cal-future';
+    else if (!act)     cls += ' cal-inactive';
+    if (sel)           cls += ' cal-sel';
+    if (now && !sel)   cls += ' cal-today';
+    html += `<div class="${cls}" ${!blocked ? `onclick="calPick('${ds}')"` : ''}>${d}</div>`;
   }
   $('cal-grid').innerHTML = html;
 }
 
 window.calShiftMonth = async function(n) {
   const [y, m] = calMonth.split('-').map(Number);
-  const d = new Date(y, m - 1 + n, 1);
+  const d    = new Date(y, m - 1 + n, 1);
   const next = d.toISOString().slice(0,7);
   if (next > todayKey().slice(0,7)) return;
+  if (calTarget === 'dash' && next < shiftDateStr(todayKey(), -2).slice(0,7)) return;
   calMonth = next;
   await fetchCalActive();
-  const sel = calTarget === 'dash' ? dashDate : feedDate;
+  const sel = calTarget === 'dash' ? dashDate : calTarget === 'profile' ? profileDate : feedDate;
   renderCal(sel);
 };
 
 window.calPick = function(date) {
-  if (calTarget === 'dash') { dashDate = date; renderDash(); }
-  else                      { feedDate = date; renderLeadFeed(); }
+  if (calTarget === 'dash') {
+    dashDate = date; renderDash();
+  } else if (calTarget === 'profile') {
+    profileDate = date;
+    updateDatePill('profile-date', profileDate);
+    renderProfileData();
+  } else {
+    feedDate = date; renderLeadFeed();
+  }
   closeCal();
 };
 
@@ -698,10 +777,10 @@ async function renderDash() {
   // Rep breakdown — rows are clickable for drill-down
   const rm = {};
   today.forEach(s => {
-    if (!rm[s.rep_name]) rm[s.rep_name] = { n:0, d:0, c:0 };
+    if (!rm[s.rep_name]) rm[s.rep_name] = { n:0, d:0, c:0, repId: s.rep_id };
     rm[s.rep_name].n++;
-    if (s.activated)         rm[s.rep_name].d++;
-    if (s.type==='credit')   rm[s.rep_name].c++;
+    if (s.activated)       rm[s.rep_name].d++;
+    if (s.type==='credit') rm[s.rep_name].c++;
   });
   const reps = Object.entries(rm).sort((a,b)=>b[1].n-a[1].n);
   $('rep-bd').innerHTML = !reps.length
@@ -710,7 +789,7 @@ async function renderDash() {
         const dr  = pct(r.d,r.n), cr = pct(r.c,r.n);
         const ini = name.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
         const safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return `<div class="rep-row rep-row-clickable" onclick="openRepModal('${safeName}','${dashDate}')">
+        return `<div class="rep-row rep-row-clickable" onclick="openRepModal('${safeName}','${dashDate}','${r.repId}')">
           <div class="rep-av">${ini}</div>
           <div class="rep-nm">${name.split(' ')[0]}</div>
           <div class="chips">
@@ -770,7 +849,7 @@ async function renderRepStats() {
       <div class="wb-day">${x.d}</div>
     </div>`).join('');
 
-  $('stats-feed').innerHTML = buildFeedHTML(mine, false, true);
+  $('stats-feed').innerHTML = buildFeedHTML(mine, true, true);
 }
 
 // ── MANAGE ───────────────────────────────────────────────────────
@@ -802,16 +881,33 @@ window.saveTargets = async function() {
 async function renderRepList() {
   const { data } = await db.from('reps').select('*').eq('mall_id', MALL_ID).order('name');
   $('rep-list').innerHTML = !data?.length ? '<div class="empty">No reps yet.</div>' :
-    data.map(r => `
-      <div class="manage-rep-row">
-        <div class="rep-av">${r.name.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase()}</div>
-        <div class="mrep-info">
-          <div class="mrep-name">${r.name}</div>
-          <div class="mrep-email">${r.email}</div>
-        </div>
-        <div class="mrep-role ${r.role}">${r.role==='lead'?'Lead':'Rep'}</div>
-        ${r.id!==session.id ? `<button class="btn-icon" onclick="removeRep('${r.id}')">✕</button>` : ''}
-      </div>`).join('');
+    data.map(r => {
+      const ini = r.name.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+      const isMe = r.id === session.id;
+      const disabled = !r.active;
+      let actions = '';
+      if (!isMe) {
+        if (!disabled) {
+          actions = `<button class="btn-disable" onclick="disableRep('${r.id}','${r.name.replace(/'/g,"\\'")}')">Disable</button>`;
+        } else {
+          actions = `<button class="btn-icon btn-delete-rep" onclick="deleteRep('${r.id}','${r.name.replace(/'/g,"\\'")}')">Delete</button>`;
+        }
+      }
+      const safeName = r.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const canView  = !isMe && r.active;
+      const clickAttr = canView ? `onclick="openRepProfile('${safeName}','${r.id}','manage')"` : '';
+      return `
+        <div class="manage-rep-row${disabled?' mrep-row-disabled':''}${canView?' rep-row-clickable':''}" ${clickAttr}>
+          <div class="rep-av${disabled?' rep-av-disabled':''}">${ini}</div>
+          <div class="mrep-info">
+            <div class="mrep-name">${r.name}${disabled?' <span class="mrep-tag-disabled">Disabled</span>':''}</div>
+            <div class="mrep-email">${r.email}</div>
+          </div>
+          <div class="mrep-role ${r.role}">${r.role==='lead'?'Lead':'Rep'}</div>
+          ${canView ? '<svg class="rep-chev" viewBox="0 0 14 14"><polyline points="4,2 10,7 4,12"/></svg>' : ''}
+          ${actions}
+        </div>`;
+    }).join('');
 }
 
 window.addRep = async function() {
@@ -822,7 +918,7 @@ window.addRep = async function() {
   if (!name||!email||!pin) { toast('Fill in all fields'); return; }
   if (pin.length < 4)      { toast('PIN must be 4–6 digits'); return; }
   const pin_hash = await hashPin(pin);
-  const { error } = await db.from('reps').insert({ mall_id:MALL_ID, name, email, role, pin_hash, active:true });
+  const { error } = await db.from('reps').insert({ mall_id:MALL_ID, name, email, role, pin_hash, active:true, must_change_pin:true });
   if (error) { toast(error.code==='23505'?'Email already exists':'Error adding rep'); return; }
   $('new-rep-name').value=''; $('new-rep-email').value=''; $('new-rep-pin').value='';
   toast(name+' added ✓');
@@ -831,10 +927,23 @@ window.addRep = async function() {
   await populateResetSelect();
 };
 
-window.removeRep = async function(id) {
-  if (!confirm('Remove this rep from the team?')) return;
+window.disableRep = async function(id, name) {
+  if (!confirm(`Disable ${name}?\n\nThey won't be able to log in, but all their sales history is kept.`)) return;
   await db.from('reps').update({ active:false }).eq('id', id);
-  toast('Rep removed');
+  toast(name + ' disabled');
+  await renderRepList();
+  await populateRepSelect();
+  await populateResetSelect();
+};
+
+window.deleteRep = async function(id, name) {
+  const confirmed = prompt(
+    `This will permanently delete ${name} and ALL their sales history.\n\nType DELETE to confirm.`
+  );
+  if (confirmed?.trim().toUpperCase() !== 'DELETE') return;
+  const { error } = await db.from('reps').delete().eq('id', id);
+  if (error) { toast('Error deleting rep'); return; }
+  toast(name + ' deleted');
   await renderRepList();
   await populateRepSelect();
   await populateResetSelect();
@@ -854,29 +963,243 @@ window.resetPin = async function() {
 };
 
 // ── REP DRILL-DOWN MODAL ──────────────────────────────────────────
-window.openRepModal = async function(repName, date) {
-  const all   = await fetchSalesByDate(date);
-  const sales = all.filter(s => s.rep_name === repName);
-  const n  = sales.length;
-  const d0 = sales.filter(s=>s.activated).length;
-  const cr = sales.filter(s=>s.type==='credit').length;
+let modalRepName = '';
+let modalRepId   = '';
+let modalRefDate = '';
 
+window.openRepModal = async function(repName, date, repId) {
+  modalRepName = repName;
+  modalRepId   = repId;
+  modalRefDate = date;
+  const ini = repName.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+  $('modal-av').textContent       = ini;
   $('modal-rep-name').textContent = repName;
-  $('modal-rep-date').textContent = fmtDateStr(date);
-  $('modal-kpis').innerHTML = `
-    <div class="ck cnt">${n} sale${n!==1?'s':''}</div>
-    <div class="ck ${pct(d0,n)>=D0_TGT?'g':'r'}">${pct(d0,n)}% D0</div>
-    <div class="ck b">${pct(cr,n)}% credit</div>
-  `;
-  $('modal-feed').innerHTML = buildFeedHTML(sales, false);
+  $('modal-rep-sub').textContent  = 'CF Promenade St-Bruno';
+  document.querySelectorAll('.modal-period-btn').forEach((b,i) => b.classList.toggle('active', i===1));
   $('rep-modal-overlay').style.display = 'block';
-  $('rep-modal').style.display = 'flex';
+  $('rep-modal').style.display         = 'flex';
+  await loadModalPeriod('week');
+};
+
+window.loadModalPeriod = async function(period, btn) {
+  if (btn) {
+    document.querySelectorAll('.modal-period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  let sales = [], chartBars = [], chartLbl = '';
+  const ref    = new Date(modalRefDate + 'T12:00:00');
+  const today  = todayKey();
+
+  if (period === 'day') {
+    const { data } = await db.from('sales').select('*')
+      .eq('mall_id', MALL_ID).eq('rep_id', modalRepId).eq('sale_date', modalRefDate);
+    sales = data || [];
+    chartLbl = fmtDateStr(modalRefDate);
+    const hm = {};
+    sales.forEach(s => { const h = parseInt(s.sale_time?.slice(0,2)||'9'); hm[h]=(hm[h]||0)+1; });
+    const hours = [9,10,11,12,13,14,15,16,17,18,19];
+    const nowH  = new Date().getHours();
+    chartBars = hours.map(h => ({ l: h+'h', n: hm[h]||0, cur: h===nowH && modalRefDate===today }));
+
+  } else if (period === 'week') {
+    const dow    = ref.getDay();
+    const monOff = dow===0 ? 6 : dow-1;
+    const mon    = new Date(ref); mon.setDate(ref.getDate()-monOff);
+    const sun    = new Date(mon); sun.setDate(mon.getDate()+6);
+    const monKey = mon.toISOString().slice(0,10);
+    const sunKey = sun.toISOString().slice(0,10);
+    const { data } = await db.from('sales').select('*')
+      .eq('mall_id', MALL_ID).eq('rep_id', modalRepId)
+      .gte('sale_date', monKey).lte('sale_date', sunKey);
+    sales = data || [];
+    chartLbl = 'This week';
+    const dm = {};
+    sales.forEach(s => { dm[s.sale_date]=(dm[s.sale_date]||0)+1; });
+    chartBars = DAY_SHORT.map((d,i) => {
+      const dt = new Date(mon); dt.setDate(mon.getDate()+i);
+      const k  = dt.toISOString().slice(0,10);
+      return { l:d, n:dm[k]||0, cur: k===modalRefDate };
+    });
+
+  } else {
+    const y = ref.getFullYear(), m = ref.getMonth();
+    const firstKey = new Date(y,m,1).toISOString().slice(0,10);
+    const lastKey  = new Date(y,m+1,0).toISOString().slice(0,10);
+    const { data } = await db.from('sales').select('*')
+      .eq('mall_id', MALL_ID).eq('rep_id', modalRepId)
+      .gte('sale_date', firstKey).lte('sale_date', lastKey);
+    sales = data || [];
+    chartLbl = ref.toLocaleDateString('en-CA', {month:'long', year:'numeric'});
+    const weeks = [{l:'W1',n:0,cur:false},{l:'W2',n:0,cur:false},{l:'W3',n:0,cur:false},{l:'W4',n:0,cur:false}];
+    sales.forEach(s => { const wi = Math.min(Math.floor((parseInt(s.sale_date.slice(8))-1)/7),3); weeks[wi].n++; });
+    const curWi = Math.min(Math.floor((parseInt(modalRefDate.slice(8))-1)/7),3);
+    weeks[curWi].cur = true;
+    chartBars = weeks;
+  }
+
+  // KPIs
+  const n   = sales.length;
+  const d0r = pct(sales.filter(s=>s.activated).length, n);
+  const crr = pct(sales.filter(s=>s.type==='credit').length, n);
+  const kpiColor = (v, g, w) => n===0?'':v>=g?'var(--green)':v>=w?'var(--amber)':'var(--red)';
+  $('modal-kpis').innerHTML = `
+    <div class="modal-kpi"><div class="modal-kpi-val">${n}</div><div class="modal-kpi-lbl">Sales</div></div>
+    <div class="modal-kpi"><div class="modal-kpi-val" style="color:${kpiColor(d0r,D0_TGT,50)}">${d0r}%</div><div class="modal-kpi-lbl">D0 rate</div></div>
+    <div class="modal-kpi"><div class="modal-kpi-val" style="color:${kpiColor(crr,CR_TGT,35)}">${crr}%</div><div class="modal-kpi-lbl">Credit mix</div></div>
+  `;
+
+  // Bar chart
+  $('modal-chart-lbl').textContent = chartLbl;
+  const mx = Math.max(...chartBars.map(b=>b.n), 1);
+  $('modal-chart').innerHTML = chartBars.map(b => `
+    <div class="wb-wrap${b.cur?' cur':''}">
+      <div class="wb-num">${b.n||''}</div>
+      <div class="wb${b.cur?' today':''}" style="height:${Math.max(3,Math.round(b.n/mx*58))}px"></div>
+      <div class="wb-day">${b.l}</div>
+    </div>`).join('');
+
+  // Product breakdown
+  const lc = {}, lt = {};
+  sales.forEach(s => (s.labels||[]).forEach(l => { lc[l]=(lc[l]||0)+1; lt[l]=s.type; }));
+  const sorted = Object.entries(lc).sort((a,b)=>b[1]-a[1]);
+  const maxC   = sorted[0]?.[1] || 1;
+  $('modal-breakdown').innerHTML = `
+    <div class="card-title" style="margin-bottom:10px">Product breakdown</div>
+    ${sorted.length ? sorted.map(([l,c]) => `
+      <div class="modal-bd-row">
+        <div class="modal-bd-name">${l}</div>
+        <div class="modal-bd-track"><div class="modal-bd-fill modal-bd-${lt[l]==='credit'?'blue':'green'}" style="width:${Math.round(c/maxC*100)}%"></div></div>
+        <div class="modal-bd-count">${c}</div>
+      </div>`).join('') : '<div class="empty" style="padding:16px 0;text-align:left">No sales in this period.</div>'}
+  `;
 };
 
 window.closeRepModal = function() {
   $('rep-modal-overlay').style.display = 'none';
   $('rep-modal').style.display = 'none';
 };
+
+// ── REP PROFILE (full-page) ──────────────────────────────────────
+let profileRepName  = '';
+let profileRepId    = '';
+let profileDate     = '';
+let profilePrevView = 'dash';
+let profilePeriod   = 'week';
+
+window.openRepProfile = function(repName, repId, fromView) {
+  profileRepName  = repName;
+  profileRepId    = repId;
+  profilePrevView = fromView || 'dash';
+  profileDate     = dashDate || todayKey();
+  const ini = repName.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+  $('profile-av').textContent   = ini;
+  $('profile-name').textContent = repName;
+  updateDatePill('profile-date', profileDate);
+  document.querySelectorAll('.profile-period').forEach((b,i) => b.classList.toggle('active', i===1));
+  profilePeriod = 'week';
+  ['lview-dash','lview-feed','lview-manage','view-log','view-contacts','lview-rep-profile']
+    .forEach(id => $(id).classList.remove('active'));
+  $('lview-rep-profile').classList.add('active');
+  document.querySelectorAll('#lead-nav .nav-btn').forEach(b => b.classList.remove('active'));
+  renderProfileData();
+};
+
+window.closeRepProfile = function() {
+  $('lview-rep-profile').classList.remove('active');
+  goLead(profilePrevView);
+};
+
+window.expandRepProfile = function() {
+  closeRepModal();
+  openRepProfile(modalRepName, modalRepId, 'dash');
+};
+
+window.setProfilePeriod = function(period, btn) {
+  document.querySelectorAll('.profile-period').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  profilePeriod = period;
+  renderProfileData();
+};
+
+async function renderProfileData() {
+  let sales = [], chartBars = [], chartLbl = '';
+  const ref   = new Date(profileDate + 'T12:00:00');
+  const today = todayKey();
+
+  if (profilePeriod === 'day') {
+    const { data } = await db.from('sales').select('*')
+      .eq('mall_id', MALL_ID).eq('rep_id', profileRepId).eq('sale_date', profileDate);
+    sales = data || [];
+    chartLbl = fmtDateStr(profileDate);
+    const hm = {}, nowH = new Date().getHours();
+    sales.forEach(s => { const h=parseInt(s.sale_time?.slice(0,2)||'9'); hm[h]=(hm[h]||0)+1; });
+    chartBars = [9,10,11,12,13,14,15,16,17,18,19].map(h => ({ l:h+'h', n:hm[h]||0, cur:h===nowH&&profileDate===today }));
+
+  } else if (profilePeriod === 'week') {
+    const dow=ref.getDay(), monOff=dow===0?6:dow-1;
+    const mon=new Date(ref); mon.setDate(ref.getDate()-monOff);
+    const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+    const { data } = await db.from('sales').select('*')
+      .eq('mall_id',MALL_ID).eq('rep_id',profileRepId)
+      .gte('sale_date',mon.toISOString().slice(0,10)).lte('sale_date',sun.toISOString().slice(0,10));
+    sales=data||[]; chartLbl='This week';
+    const dm={};
+    sales.forEach(s=>{dm[s.sale_date]=(dm[s.sale_date]||0)+1;});
+    chartBars=DAY_SHORT.map((d,i)=>{
+      const dt=new Date(mon);dt.setDate(mon.getDate()+i);
+      const k=dt.toISOString().slice(0,10);
+      return{l:d,n:dm[k]||0,cur:k===profileDate};
+    });
+
+  } else {
+    const y=ref.getFullYear(),m=ref.getMonth();
+    const { data } = await db.from('sales').select('*')
+      .eq('mall_id',MALL_ID).eq('rep_id',profileRepId)
+      .gte('sale_date',new Date(y,m,1).toISOString().slice(0,10))
+      .lte('sale_date',new Date(y,m+1,0).toISOString().slice(0,10));
+    sales=data||[];
+    chartLbl=ref.toLocaleDateString('en-CA',{month:'long',year:'numeric'});
+    const weeks=[{l:'W1',n:0,cur:false},{l:'W2',n:0,cur:false},{l:'W3',n:0,cur:false},{l:'W4',n:0,cur:false}];
+    sales.forEach(s=>{const wi=Math.min(Math.floor((parseInt(s.sale_date.slice(8))-1)/7),3);weeks[wi].n++;});
+    weeks[Math.min(Math.floor((parseInt(profileDate.slice(8))-1)/7),3)].cur=true;
+    chartBars=weeks;
+  }
+
+  const n=sales.length;
+  const d0r=pct(sales.filter(s=>s.activated).length,n);
+  const crr=pct(sales.filter(s=>s.type==='credit').length,n);
+  const col=(v,g,w)=>n===0?'':v>=g?'var(--green)':v>=w?'var(--amber)':'var(--red)';
+
+  $('profile-kpis').innerHTML=`
+    <div class="modal-kpi"><div class="modal-kpi-val">${n}</div><div class="modal-kpi-lbl">Sales</div></div>
+    <div class="modal-kpi"><div class="modal-kpi-val" style="color:${col(d0r,D0_TGT,50)}">${d0r}%</div><div class="modal-kpi-lbl">D0 rate</div></div>
+    <div class="modal-kpi"><div class="modal-kpi-val" style="color:${col(crr,CR_TGT,35)}">${crr}%</div><div class="modal-kpi-lbl">Credit mix</div></div>
+  `;
+
+  $('profile-chart-lbl').textContent=chartLbl;
+  const mx=Math.max(...chartBars.map(b=>b.n),1);
+  $('profile-chart').innerHTML=chartBars.map(b=>`
+    <div class="wb-wrap${b.cur?' cur':''}">
+      <div class="wb-num">${b.n||''}</div>
+      <div class="wb${b.cur?' today':''}" style="height:${Math.max(3,Math.round(b.n/mx*58))}px"></div>
+      <div class="wb-day">${b.l}</div>
+    </div>`).join('');
+
+  const lc={},lt={};
+  sales.forEach(s=>(s.labels||[]).forEach(l=>{lc[l]=(lc[l]||0)+1;lt[l]=s.type;}));
+  const sorted=Object.entries(lc).sort((a,b)=>b[1]-a[1]);
+  const maxC=sorted[0]?.[1]||1;
+  $('profile-breakdown').innerHTML=`
+    <div class="card-title" style="margin-bottom:10px">Product breakdown</div>
+    ${sorted.length?sorted.map(([l,c])=>`
+      <div class="modal-bd-row">
+        <div class="modal-bd-name">${l}</div>
+        <div class="modal-bd-track"><div class="modal-bd-fill modal-bd-${lt[l]==='credit'?'blue':'green'}" style="width:${Math.round(c/maxC*100)}%"></div></div>
+        <div class="modal-bd-count">${c}</div>
+      </div>`).join(''):'<div class="empty" style="padding:16px 0;text-align:left">No sales in this period.</div>'}
+  `;
+}
 
 // ── CONTACTS ─────────────────────────────────────────────────────
 

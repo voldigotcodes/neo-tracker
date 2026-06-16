@@ -19,13 +19,31 @@
 <div id="view-login" class="view active">
   <div class="login-wrap">
     <div class="login-logo">ne<em>o</em></div>
-    <div class="login-sub">Carrefour Laval · Sales Tracker</div>
+    <div class="login-sub">CF Promenade St-Bruno · Sales Tracker</div>
     <div class="login-card">
       <div class="login-title">Sign in</div>
       <input class="login-field" type="email"    id="login-email" placeholder="Email address"  autocomplete="email" inputmode="email">
       <input class="login-field" type="password" id="login-pin"   placeholder="PIN"            autocomplete="current-password" inputmode="numeric" maxlength="6">
       <div class="login-err" id="login-err">Incorrect email or PIN. Try again.</div>
       <button class="btn-primary" id="login-btn" onclick="doLogin()">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     CHANGE PIN (first login)
+══════════════════════════════════════════════════════ -->
+<div id="view-change-pin" class="view">
+  <div class="login-wrap">
+    <div class="login-logo">ne<em>o</em></div>
+    <div class="login-sub">Set your personal PIN</div>
+    <div class="login-card">
+      <div class="login-title">Choose a PIN</div>
+      <p style="font-size:13px;color:#5C6370;margin-top:-4px;line-height:1.5">Your lead set a temporary PIN for you. Choose a new one before you continue.</p>
+      <input class="login-field" type="password" id="pin-new"     placeholder="New PIN (4–6 digits)"     inputmode="numeric" maxlength="6">
+      <input class="login-field" type="password" id="pin-confirm" placeholder="Confirm PIN"               inputmode="numeric" maxlength="6">
+      <div class="login-err" id="pin-err"></div>
+      <button class="btn-primary" id="pin-btn" onclick="doChangePin()">Set PIN &amp; continue</button>
     </div>
   </div>
 </div>
@@ -322,15 +340,11 @@
     <div class="card"><div class="card-pad" id="rep-bd"><div class="empty">No sales logged today yet.</div></div></div>
   </div>
 
-  <!-- FEED (lead) -->
+  <!-- FEED (lead) — today only, no date picker -->
   <div id="lview-feed" class="view">
     <div class="page-top">
-      <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Live feed</div></div>
-      <div class="date-nav">
-        <button class="date-nav-btn" onclick="shiftFeedDate(-1)">‹</button>
-        <div class="today-pill today-pill-tap" id="lfeed-date" onclick="openCal('feed')"></div>
-        <button class="date-nav-btn" id="lfeed-next" onclick="shiftFeedDate(1)" disabled>›</button>
-      </div>
+      <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Live feed · today</div></div>
+      <div class="today-pill" id="lfeed-date"></div>
     </div>
     <div class="card"><div class="card-pad" id="lfeed"><div class="empty">No sales yet today.</div></div></div>
   </div>
@@ -384,6 +398,33 @@
     <div style="height:16px"></div>
   </div>
 
+  <!-- REP PROFILE (full-page drill-down) -->
+  <div id="lview-rep-profile" class="view">
+    <div class="page-top">
+      <button class="btn-back" onclick="closeRepProfile()">← Back</button>
+      <div class="today-pill today-pill-tap" id="profile-date" onclick="openCal('profile')"></div>
+    </div>
+    <div class="profile-hdr">
+      <div class="rep-av" id="profile-av"></div>
+      <div>
+        <div class="profile-name" id="profile-name"></div>
+        <div class="profile-sub">CF Promenade St-Bruno</div>
+      </div>
+    </div>
+    <div class="modal-period-row" style="padding:0 16px 12px">
+      <button class="modal-period-btn profile-period" onclick="setProfilePeriod('day',this)">Day</button>
+      <button class="modal-period-btn profile-period active" onclick="setProfilePeriod('week',this)">Week</button>
+      <button class="modal-period-btn profile-period" onclick="setProfilePeriod('month',this)">Month</button>
+    </div>
+    <div class="modal-kpis" id="profile-kpis"></div>
+    <div class="card"><div class="card-pad">
+      <div class="card-title" id="profile-chart-lbl"></div>
+      <div class="week" id="profile-chart"></div>
+    </div></div>
+    <div class="card"><div class="card-pad" id="profile-breakdown"></div></div>
+    <div style="height:80px"></div>
+  </div>
+
   <!-- LEAD NAV -->
   <nav class="nav" id="lead-nav">
     <button class="nav-btn active" id="lnav-dash" onclick="goLead('dash')">
@@ -411,12 +452,35 @@
 <div id="rep-modal-overlay" class="modal-overlay" onclick="closeRepModal()" style="display:none"></div>
 <div id="rep-modal" class="modal-sheet" style="display:none">
   <div class="modal-handle"></div>
-  <div class="modal-header">
-    <div class="modal-title" id="modal-rep-name"></div>
-    <div class="modal-sub"   id="modal-rep-date"></div>
+
+  <div class="modal-hdr-rep">
+    <div class="rep-av" id="modal-av"></div>
+    <div style="flex:1">
+      <div class="modal-title" id="modal-rep-name"></div>
+      <div class="modal-sub"   id="modal-rep-sub"></div>
+    </div>
+    <button class="modal-expand-btn" onclick="expandRepProfile()" title="Open full profile">↗</button>
   </div>
-  <div class="modal-kpis" id="modal-kpis"></div>
-  <div class="card-pad" id="modal-feed" style="overflow-y:auto;max-height:50vh;padding-top:0"></div>
+
+  <div class="modal-period-row">
+    <button class="modal-period-btn" onclick="loadModalPeriod('day',this)">Day</button>
+    <button class="modal-period-btn active" onclick="loadModalPeriod('week',this)">Week</button>
+    <button class="modal-period-btn" onclick="loadModalPeriod('month',this)">Month</button>
+  </div>
+
+  <div style="height:1px;background:var(--border);margin:0 20px"></div>
+
+  <div style="overflow-y:auto;flex:1;padding-bottom:24px">
+    <div class="modal-kpis" id="modal-kpis"></div>
+
+    <div style="padding:0 20px 16px">
+      <div class="card-title" id="modal-chart-lbl"></div>
+      <div class="week" id="modal-chart"></div>
+    </div>
+
+    <div style="height:1px;background:var(--border);margin:0 20px 14px"></div>
+    <div style="padding:0 20px" id="modal-breakdown"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
