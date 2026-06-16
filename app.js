@@ -397,6 +397,7 @@ window.submitSale = async function() {
   if (!cart.length) { toast('Select at least one product'); return; }
   if (hasSecured() && !form.depAmt) { toast('Enter the security deposit amount'); return; }
 
+  const saleMsg = buildActivationMessage(cart, form); // build while still in gesture context
   const btn = document.querySelector('#view-log .btn-primary');
   btn.disabled = true; btn.textContent = 'Logging…';
 
@@ -426,14 +427,14 @@ window.submitSale = async function() {
   } else {
     const { error } = await db.from('sales').insert(sale);
     if (error) { toast('Error saving. Try again.'); btn.disabled=false; btn.textContent='Log sale'; return; }
-    copyActivationMessage(cart, form);
     toast('✓ Logged · message copied 📋');
     resetForm();
     btn.disabled = false; btn.textContent = 'Log sale';
+    setTimeout(() => navigator.clipboard.writeText(saleMsg).catch(() => {}), 50);
   }
 };
 
-function copyActivationMessage(cartItems, f) {
+function buildActivationMessage(cartItems, f) {
   const labelMap = {
     'World Unsecured':       'W',
     'World Secured':         'SecW',
@@ -446,13 +447,13 @@ function copyActivationMessage(cartItems, f) {
   };
   const moneyLabels = ['Neo Money','Neo Savings'];
 
-  const labels = cartItems.map(i => i.l);
-  const weLabel  = labels.map(l => labelMap[l]).filter(Boolean).join(' + ');
-  const stdLabel = labels.map(l => stdMap[l]).filter(Boolean).join(' + ');
+  const labels     = cartItems.map(i => i.l);
+  const weLabel    = labels.map(l => labelMap[l]).filter(Boolean).join(' + ');
+  const stdLabel   = labels.map(l => stdMap[l]).filter(Boolean).join(' + ');
   const moneyLabel = labels.filter(l => moneyLabels.includes(l)).join(' + ');
-  const deposit = f.dep && f.depAmt ? `$${f.depAmt}` : f.dep ? 'Yes' : 'N/A';
+  const deposit    = f.dep && f.depAmt ? `$${f.depAmt}` : f.dep ? 'Yes' : 'N/A';
 
-  const msg = [
+  return [
     `Activation: mall`,
     `Location: CF Promenade St-Bruno`,
     `Was this a new Cx: Yes`,
@@ -463,8 +464,6 @@ function copyActivationMessage(cartItems, f) {
     `Product: ${labels.length}`,
     `Activated Y/N: ${f.act ? 'Y' : 'N'}`,
   ].join('\n');
-
-  navigator.clipboard.writeText(msg).catch(() => {});
 }
 
 function resetForm() {
