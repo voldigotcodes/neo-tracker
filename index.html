@@ -258,11 +258,20 @@
       </div>
     </div>
 
+    <div class="shift-info-banner" id="shift-banner" style="display:none">
+      <div id="shift-banner-text"></div>
+    </div>
+
     <div class="kpi-grid">
       <div class="kpi" id="skpi-tot"><div class="kpi-val" id="sk-tot">0</div><div class="kpi-lbl">My sales</div></div>
       <div class="kpi"><div class="kpi-val" id="sk-tgt">—</div><div class="kpi-lbl">Target</div></div>
       <div class="kpi" id="skpi-d0"><div class="kpi-val" id="sk-d0">0%</div><div class="kpi-lbl">D0 rate</div></div>
       <div class="kpi" id="skpi-cr"><div class="kpi-val" id="sk-cr">0%</div><div class="kpi-lbl">Credit mix</div></div>
+    </div>
+
+    <div class="kpi-grid" id="cph-stat-row" style="display:none">
+      <div class="kpi" id="kpi-sk-cph"><div class="kpi-val" id="sk-cph">—</div><div class="kpi-lbl">My CPH</div></div>
+      <div class="kpi" id="kpi-sk-acph"><div class="kpi-val" id="sk-acph">—</div><div class="kpi-lbl">My ACPH</div></div>
     </div>
 
     <div class="card"><div class="card-pad">
@@ -324,6 +333,11 @@
       <div class="kpi" id="kpi-cr"><div class="kpi-val" id="k-cr">0%</div><div class="kpi-lbl">Credit mix</div></div>
     </div>
 
+    <div class="kpi-grid" id="cph-kpi-row" style="display:none">
+      <div class="kpi" id="kpi-cph"><div class="kpi-val" id="k-cph">—</div><div class="kpi-lbl">Mall CPH</div></div>
+      <div class="kpi" id="kpi-acph"><div class="kpi-val" id="k-acph">—</div><div class="kpi-lbl">Mall ACPH</div></div>
+    </div>
+
     <div class="card"><div class="card-pad">
       <div class="card-title">vs targets</div>
       <div class="prog-row"><div class="prog-lbl">Sales</div><div class="prog-track"><div class="prog-fill" id="pf-s" style="width:0%"></div></div><div class="prog-val" id="pv-s">0</div></div>
@@ -356,7 +370,29 @@
       <div class="today-pill" id="manage-date"></div>
     </div>
 
-    <span class="sec first">Daily targets</span>
+    <span class="sec first">Today's roster</span>
+    <div class="card"><div class="card-pad">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title">Who's working</div>
+        <div class="date-nav">
+          <button class="date-nav-btn" onclick="shiftRosterDate(-1)">‹</button>
+          <div class="today-pill today-pill-tap" id="roster-date" onclick="openCal('roster')"></div>
+          <button class="date-nav-btn" id="roster-next" onclick="shiftRosterDate(1)" disabled>›</button>
+        </div>
+      </div>
+      <div class="roster-past-banner" id="roster-past-banner" style="display:none">Editing a past date — changes saved instantly</div>
+      <div id="roster-list"><div class="empty">Loading…</div></div>
+      <div style="padding-top:10px"><button class="btn-primary" id="roster-save-btn" onclick="saveRoster()">Save roster</button></div>
+    </div></div>
+
+    <span class="sec">CPH / ACPH targets</span>
+    <div class="card"><div class="card-pad">
+      <div class="target-row"><div class="target-day">CPH target</div><input class="target-input" type="number" id="cph-target-input" step="0.1" min="0.1" max="20"></div>
+      <div class="target-row"><div class="target-day">ACPH target</div><input class="target-input" type="number" id="acph-target-input" step="0.1" min="0.1" max="20"></div>
+    </div></div>
+    <div class="btn-wrap" style="margin-bottom:10px"><button class="btn-primary" onclick="saveCphTargets()">Save CPH targets</button></div>
+
+    <span class="sec">Daily targets</span>
     <div class="card"><div class="card-pad" id="targets-form"></div></div>
     <div class="btn-wrap" style="margin-bottom:10px">
       <button class="btn-primary" onclick="saveTargets()">Save targets</button>

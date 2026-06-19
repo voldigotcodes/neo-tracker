@@ -1,7 +1,7 @@
 // ================================================================
 // NEO TRACKER · app.js
 // ================================================================
-import { db } from './supabase.js';
+import { db, SUPABASE_URL, SUPABASE_ANON } from './supabase.js';
 
 const MALL_ID = '2f153b45-2124-4bff-9008-32c4c145c8c7';
 
@@ -18,7 +18,10 @@ let dashDate   = '';
 let feedDate   = '';
 let statsDate  = '';
 let editingId  = null;   // sale ID being edited, null = new sale
-let calTarget  = null;   // 'dash' | 'feed' — which date the calendar controls
+let rosterDate = '';     // date shown in the roster card
+let cphTarget  = 2.0;   // mall CPH target (loaded from malls table)
+let acphTarget = 1.5;   // mall ACPH target
+let calTarget  = null;  // 'dash' | 'feed' | 'profile' | 'roster'
 let calMonth   = '';     // 'YYYY-MM' currently displayed in calendar
 let calActive  = new Set(); // sale_dates that have at least one sale
 let salesCache = {};     // id → sale object, populated by feed renders
@@ -27,7 +30,11 @@ let cxInterested = [];   // interested_in chips selected on the add-contact form
 // ── HELPERS ──────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 
-function todayKey() { return new Date().toISOString().slice(0,10); }
+function todayKey() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
 
 function fmtDate(d) {
   return d.toLocaleDateString('fr-CA',{weekday:'short',month:'short',day:'numeric'});
@@ -95,6 +102,18 @@ window.doLogin = async function() {
     const { data, error } = await db.from('reps')
       .select('*').eq('email', email).eq('pin_hash', hash).eq('active', true).single();
     if (error || !data) throw new Error('Not found');
+
+    // Sync Supabase Auth session — creates account on first login, signs in on subsequent ones
+    if (data.auth_uid) {
+      await db.auth.signInWithPassword({ email, password: hash }).catch(console.warn);
+    } else {
+      const { data: authUser } = await db.auth.signUp({ email, password: hash }).catch(() => ({ data: null }));
+      if (authUser?.user?.id) {
+        data.auth_uid = authUser.user.id;
+        db.from('reps').update({ auth_uid: authUser.user.id }).eq('id', data.id).catch(console.warn);
+      }
+    }
+
     session = data;
     sessionStorage.setItem('neo_session', JSON.stringify(data));
     if (data.must_change_pin) {
@@ -112,6 +131,7 @@ window.doLogin = async function() {
 };
 
 window.doLogout = function() {
+  db.auth.signOut().catch(console.warn);
   sessionStorage.removeItem('neo_session');
   session = null;
   if (realtimeCh) { db.removeChannel(realtimeCh); realtimeCh = null; }
@@ -144,6 +164,7 @@ window.doChangePin = async function() {
   session.must_change_pin = false;
   session.pin_hash = pin_hash;
   sessionStorage.setItem('neo_session', JSON.stringify(session));
+  db.auth.updateUser({ password: pin_hash }).catch(console.warn); // sync Auth password
   $('view-change-pin').classList.remove('active');
   $('pin-new').value = ''; $('pin-confirm').value = '';
   await bootApp();
@@ -152,12 +173,15 @@ window.doChangePin = async function() {
 // ── BOOT ─────────────────────────────────────────────────────────
 async function bootApp() {
   $('view-login').classList.remove('active');
-  const { data: mall } = await db.from('malls').select('targets').eq('id', MALL_ID).single();
-  if (mall?.targets) targets = mall.targets;
+  const { data: mall } = await db.from('malls').select('targets, cph_target, acph_target').eq('id', MALL_ID).single();
+  if (mall?.targets)    targets   = mall.targets;
+  if (mall?.cph_target)  cphTarget  = parseFloat(mall.cph_target);
+  if (mall?.acph_target) acphTarget = parseFloat(mall.acph_target);
 
-  dashDate  = todayKey();
-  feedDate  = todayKey();
-  statsDate = todayKey();
+  dashDate   = todayKey();
+  feedDate   = todayKey();
+  statsDate  = todayKey();
+  rosterDate = todayKey();
 
   await populateRepSelect();
 
@@ -175,6 +199,7 @@ async function bootApp() {
     requestPushPermission();
   }
   initDates();
+  drainQueue(); // replay any sales logged while offline
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -187,12 +212,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (dc) dc.addEventListener('input', function() {
     if (this.value) { resetDepBtns(); form.depAmt = this.value; } else form.depAmt = null;
   });
+  window.addEventListener('online', () => { if (session) drainQueue(); });
 });
 
 // ── REALTIME ─────────────────────────────────────────────────────
 function subscribeRealtime() {
   if (realtimeCh) db.removeChannel(realtimeCh);
-  realtimeCh = db.channel('sales-live')
+  realtimeCh = db.channel('neo-live')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sales', filter: `mall_id=eq.${MALL_ID}` },
       () => {
         if (session.role === 'lead') {
@@ -202,6 +228,10 @@ function subscribeRealtime() {
           if ($('view-feed')?.classList.contains('active'))  renderRepFeed();
           if ($('view-stats')?.classList.contains('active')) renderRepStats();
         }
+      })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts', filter: `rep_id=eq.${session.id}` },
+      () => {
+        if ($('view-contacts')?.classList.contains('active')) renderContacts();
       })
     .subscribe();
 }
@@ -426,7 +456,19 @@ window.submitSale = async function() {
     else goLead('feed');
   } else {
     const { error } = await db.from('sales').insert(sale);
-    if (error) { toast('Error saving. Try again.'); btn.disabled=false; btn.textContent='Log sale'; return; }
+    if (error) {
+      if (!navigator.onLine) {
+        await queueSale(sale);
+        toast('No connection — sale queued ⏳');
+        resetForm();
+        btn.disabled = false; btn.textContent = 'Log sale';
+        setTimeout(() => navigator.clipboard.writeText(saleMsg).catch(() => {}), 50);
+      } else {
+        toast('Error saving. Try again.');
+        btn.disabled = false; btn.textContent = 'Log sale';
+      }
+      return;
+    }
     toast('✓ Logged · message copied 📋');
     resetForm();
     btn.disabled = false; btn.textContent = 'Log sale';
@@ -473,7 +515,7 @@ function resetForm() {
   if (logBtn) logBtn.textContent = 'Log sale';
   $('notes').value = '';
   $('cart-row').innerHTML = '';
-  document.querySelectorAll('.in').forEach(e=>e.classList.remove('in'));
+  $('view-log').querySelectorAll('.in').forEach(e=>e.classList.remove('in'));
   ['q-act','q-dep'].forEach(id => $(id).style.display='none');
   $('tog-act').classList.remove('on'); $('tog-dep').classList.remove('on');
   $('tog-dep').style.opacity=''; $('tog-dep').style.pointerEvents='';
@@ -628,7 +670,7 @@ window.shiftStatsDate = function(n) {
 // ── DATE PICKER CALENDAR ─────────────────────────────────────────
 window.openCal = async function(target) {
   calTarget = target;
-  const current = target === 'dash' ? dashDate : target === 'profile' ? profileDate : feedDate;
+  const current = target === 'dash' ? dashDate : target === 'profile' ? profileDate : target === 'roster' ? rosterDate : feedDate;
   calMonth = current.slice(0, 7);
   await fetchCalActive();
   renderCal(current);
@@ -700,7 +742,7 @@ window.calShiftMonth = async function(n) {
   if (calTarget === 'dash' && next < shiftDateStr(todayKey(), -2).slice(0,7)) return;
   calMonth = next;
   await fetchCalActive();
-  const sel = calTarget === 'dash' ? dashDate : calTarget === 'profile' ? profileDate : feedDate;
+  const sel = calTarget === 'dash' ? dashDate : calTarget === 'profile' ? profileDate : calTarget === 'roster' ? rosterDate : feedDate;
   renderCal(sel);
 };
 
@@ -711,6 +753,9 @@ window.calPick = function(date) {
     profileDate = date;
     updateDatePill('profile-date', profileDate);
     renderProfileData();
+  } else if (calTarget === 'roster') {
+    rosterDate = date;
+    renderRoster();
   } else {
     feedDate = date; renderLeadFeed();
   }
@@ -732,6 +777,24 @@ async function renderDash() {
 
   $('k-tot').textContent = tot; $('k-tgt').textContent = tgt;
   $('k-d0').textContent  = d0r+'%'; $('k-cr').textContent = crr+'%';
+
+  // CPH / ACPH — fetch shift hours for this date
+  const { data: shiftRows } = await db.from('shifts')
+    .select('rep_id, hours').eq('mall_id', MALL_ID).eq('shift_date', dashDate);
+  const shiftMap = {};
+  (shiftRows || []).forEach(s => { shiftMap[s.rep_id] = parseFloat(s.hours); });
+  const totalHours = Object.values(shiftMap).reduce((a,b) => a+b, 0);
+  if (totalHours > 0) {
+    const mc = (tot / totalHours).toFixed(1);
+    const ma = (d0s / totalHours).toFixed(1);
+    $('cph-kpi-row').style.display = '';
+    $('k-cph').textContent  = mc;
+    $('k-acph').textContent = ma;
+    $('kpi-cph').className  = 'kpi ' + (parseFloat(mc) >= cphTarget  ? 'good' : parseFloat(mc)  >= cphTarget*.75  ? 'warn' : 'bad');
+    $('kpi-acph').className = 'kpi ' + (parseFloat(ma) >= acphTarget ? 'good' : parseFloat(ma) >= acphTarget*.75 ? 'warn' : 'bad');
+  } else {
+    $('cph-kpi-row').style.display = 'none';
+  }
 
   function colorKpi(id,val,g,w) {
     $(id).className = 'kpi ' + (tot===0 ? '' : val>=g?'good':val>=w?'warn':'bad');
@@ -795,6 +858,7 @@ async function renderDash() {
             <div class="ck cnt">${r.n} cx</div>
             <div class="ck ${dr>=D0_TGT?'g':'r'}">${dr}% D0</div>
             <div class="ck b">${cr}% cr</div>
+            ${shiftMap[r.repId] ? `<div class="ck ${(r.n/shiftMap[r.repId])>=cphTarget?'g':(r.n/shiftMap[r.repId])>=cphTarget*.75?'o':'r'}">${(r.n/shiftMap[r.repId]).toFixed(1)} CPH</div><div class="ck ${(r.d/shiftMap[r.repId])>=acphTarget?'g':(r.d/shiftMap[r.repId])>=acphTarget*.75?'o':'r'}">${(r.d/shiftMap[r.repId]).toFixed(1)} ACPH</div>` : ''}
           </div>
           <svg class="rep-chev" viewBox="0 0 14 14"><polyline points="4,2 10,7 4,12"/></svg>
         </div>`;
@@ -849,10 +913,32 @@ async function renderRepStats() {
     </div>`).join('');
 
   $('stats-feed').innerHTML = buildFeedHTML(mine, true, true);
+
+  // Shift hours + CPH/ACPH
+  const { data: shiftRow } = await db.from('shifts')
+    .select('hours').eq('rep_id', session.id).eq('shift_date', statsDate).maybeSingle();
+  const shiftHrs = shiftRow?.hours ? parseFloat(shiftRow.hours) : null;
+  if (shiftHrs) {
+    $('shift-banner').style.display = 'block';
+    $('shift-banner-text').textContent = `Today's shift · ${shiftHrs}h (set by lead)`;
+    $('cph-stat-row').style.display = '';
+    const myCph  = (tot / shiftHrs).toFixed(1);
+    const myAcph = (d0s / shiftHrs).toFixed(1);
+    $('sk-cph').textContent  = myCph;
+    $('sk-acph').textContent = myAcph;
+    $('kpi-sk-cph').className  = 'kpi ' + (parseFloat(myCph) >= cphTarget ? 'good' : parseFloat(myCph) >= cphTarget*.75 ? 'warn' : 'bad');
+    $('kpi-sk-acph').className = 'kpi ' + (parseFloat(myAcph) >= acphTarget ? 'good' : parseFloat(myAcph) >= acphTarget*.75 ? 'warn' : 'bad');
+  } else {
+    $('shift-banner').style.display = 'none';
+    $('cph-stat-row').style.display = 'none';
+  }
 }
 
 // ── MANAGE ───────────────────────────────────────────────────────
 async function renderManage() {
+  $('cph-target-input').value  = cphTarget;
+  $('acph-target-input').value = acphTarget;
+  renderRoster();
   renderTargetsForm();
   await renderRepList();
   await populateResetSelect();
@@ -954,8 +1040,21 @@ window.resetPin = async function() {
   if (!repId)  { toast('Select a rep'); return; }
   if (!newPin || newPin.length < 4) { toast('PIN must be 4–6 digits'); return; }
   const pin_hash = await hashPin(newPin);
-  const { error } = await db.from('reps').update({ pin_hash }).eq('id', repId);
+  const { error } = await db.from('reps').update({ pin_hash, must_change_pin: true }).eq('id', repId);
   if (error) { toast('Error resetting PIN'); return; }
+  // Fire-and-forget: sync Supabase Auth password via Edge Function (non-blocking)
+  const { data: sd } = await db.auth.getSession();
+  if (sd?.session?.access_token) {
+    fetch(`${SUPABASE_URL}/functions/v1/reset-pin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sd.session.access_token}`,
+        'apikey': SUPABASE_ANON,
+      },
+      body: JSON.stringify({ rep_id: repId, pin_hash }),
+    }).catch(console.warn);
+  }
   $('reset-new-pin').value = '';
   $('reset-rep-select').value = '';
   toast('PIN reset ✓');
@@ -1077,6 +1176,109 @@ window.loadModalPeriod = async function(period, btn) {
 window.closeRepModal = function() {
   $('rep-modal-overlay').style.display = 'none';
   $('rep-modal').style.display = 'none';
+};
+
+// ── ROSTER ───────────────────────────────────────────────────────
+async function renderRoster() {
+  const isPast = rosterDate < todayKey();
+  updateDatePill('roster-date', rosterDate);
+  $('roster-next').disabled = rosterDate >= todayKey();
+  $('roster-past-banner').style.display = isPast ? 'block' : 'none';
+  $('roster-save-btn').textContent = isPast ? 'Update past roster' : 'Save roster';
+
+  const [{ data: reps }, { data: shifts }, salesResp] = await Promise.all([
+    db.from('reps').select('id, name, role').eq('mall_id', MALL_ID).eq('active', true).order('name'),
+    db.from('shifts').select('rep_id, hours').eq('mall_id', MALL_ID).eq('shift_date', rosterDate),
+    isPast ? db.from('sales').select('rep_id, activated').eq('mall_id', MALL_ID).eq('sale_date', rosterDate) : { data: [] }
+  ]);
+
+  const shiftMap = {};
+  (shifts || []).forEach(s => { shiftMap[s.rep_id] = parseFloat(s.hours); });
+
+  const salesMap = {};
+  (salesResp.data || []).forEach(s => {
+    if (!salesMap[s.rep_id]) salesMap[s.rep_id] = { n:0, d0:0 };
+    salesMap[s.rep_id].n++;
+    if (s.activated) salesMap[s.rep_id].d0++;
+  });
+
+  $('roster-list').innerHTML = (reps || []).map(r => {
+    const hrs  = shiftMap[r.id] || null;
+    const isOn = hrs !== null;
+    const ini  = r.name.split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+    const sm   = salesMap[r.id];
+    let statsHtml = '';
+    if (isPast && sm) {
+      if (hrs) {
+        const cv = (sm.n/hrs).toFixed(1), av = (sm.d0/hrs).toFixed(1);
+        statsHtml = `<div class="chips" style="margin-top:4px">
+          <div class="ck cnt">${sm.n} cx</div>
+          <div class="ck ${parseFloat(cv)>=cphTarget?'g':'r'}">${cv} CPH</div>
+          <div class="ck ${parseFloat(av)>=acphTarget?'g':'r'}">${av} ACPH</div>
+        </div>`;
+      } else {
+        statsHtml = `<div class="chips" style="margin-top:4px"><div class="ck cnt">${sm.n} cx · no hours set</div></div>`;
+      }
+    }
+    return `<div class="manage-rep-row" data-rep-id="${r.id}">
+      <div class="rep-av">${ini}</div>
+      <div class="mrep-info">
+        <div class="mrep-name">${r.name}</div>
+        <div class="mrep-email">${r.role === 'lead' ? 'Lead' : 'Rep'}</div>
+        ${statsHtml}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <button class="tog${isOn?' on':''}" onclick="toggleRosterRep(this)"></button>
+        <input class="roster-hrs-input" type="number" value="${hrs||''}" placeholder="—" min="0.5" max="14" step="0.5" ${!isOn?'disabled':''}>
+        <span class="mrep-email">h</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.shiftRosterDate = function(n) {
+  const next = shiftDateStr(rosterDate, n);
+  if (next > todayKey()) return;
+  rosterDate = next;
+  renderRoster();
+};
+
+window.toggleRosterRep = function(btn) {
+  btn.classList.toggle('on');
+  const row   = btn.closest('.manage-rep-row');
+  const input = row.querySelector('.roster-hrs-input');
+  const isOn  = btn.classList.contains('on');
+  input.disabled     = !isOn;
+  input.style.opacity = isOn ? '1' : '0.35';
+};
+
+window.saveRoster = async function() {
+  const rows    = document.querySelectorAll('#roster-list .manage-rep-row');
+  const upserts = [], toDelete = [];
+  rows.forEach(row => {
+    const repId = row.dataset.repId;
+    const isOn  = row.querySelector('.tog').classList.contains('on');
+    const hrs   = parseFloat(row.querySelector('.roster-hrs-input').value);
+    if (isOn && hrs > 0) upserts.push({ mall_id: MALL_ID, rep_id: repId, shift_date: rosterDate, hours: hrs });
+    else toDelete.push(repId);
+  });
+  const ops = [];
+  if (upserts.length) ops.push(db.from('shifts').upsert(upserts, { onConflict: 'rep_id,shift_date' }));
+  if (toDelete.length) ops.push(db.from('shifts').delete().eq('mall_id', MALL_ID).eq('shift_date', rosterDate).in('rep_id', toDelete));
+  await Promise.all(ops);
+  toast('Roster saved ✓');
+  if (rosterDate === dashDate) renderDash();
+};
+
+window.saveCphTargets = async function() {
+  const cph  = parseFloat($('cph-target-input').value);
+  const acph = parseFloat($('acph-target-input').value);
+  if (!cph || !acph || cph <= 0 || acph <= 0) { toast('Enter valid targets'); return; }
+  const { error } = await db.from('malls').update({ cph_target: cph, acph_target: acph }).eq('id', MALL_ID);
+  if (error) { toast('Error saving targets'); return; }
+  cphTarget = cph; acphTarget = acph;
+  toast('CPH targets saved ✓');
+  renderDash();
 };
 
 // ── REP PROFILE (full-page) ──────────────────────────────────────
@@ -1377,6 +1579,60 @@ function renderCxCard(c, today, tomorrow) {
       ${actions.join('')}
     </div>
   </div>`;
+}
+
+// ── OFFLINE QUEUE ────────────────────────────────────────────────
+// Failed sale inserts are saved to IndexedDB and replayed when connectivity returns.
+
+function openOfflineDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('neo-offline', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('sales', { keyPath: 'qid' });
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function queueSale(sale) {
+  const idb = await openOfflineDB();
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction('sales', 'readwrite');
+    tx.objectStore('sales').add({ qid: crypto.randomUUID(), ...sale, queued_at: Date.now() });
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+async function drainQueue() {
+  let idb;
+  try { idb = await openOfflineDB(); } catch { return; }
+
+  const pending = await new Promise((resolve) => {
+    const tx  = idb.transaction('sales', 'readonly');
+    const req = tx.objectStore('sales').getAll();
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = () => resolve([]);
+  });
+
+  if (!pending.length) return;
+  toast(`Syncing ${pending.length} queued sale(s)…`, 3000);
+
+  let synced = 0;
+  for (const item of pending) {
+    const { qid, queued_at, ...sale } = item;
+    const { error } = await db.from('sales').insert(sale);
+    if (!error) {
+      synced++;
+      await new Promise(resolve => {
+        const tx = idb.transaction('sales', 'readwrite');
+        tx.objectStore('sales').delete(qid);
+        tx.oncomplete = resolve;
+        tx.onerror    = resolve;
+      });
+    }
+  }
+
+  if (synced > 0) toast(`✓ Synced ${synced} offline sale(s)`);
 }
 
 // ── AUTO-REFRESH ──────────────────────────────────────────────────

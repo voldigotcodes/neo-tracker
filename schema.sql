@@ -92,3 +92,42 @@ alter publication supabase_realtime add table sales;
 -- DONE. Copy the mall ID from the malls table and paste it into
 -- app.js as MALL_ID after running this.
 -- ================================================================
+
+-- ================================================================
+-- MIGRATION · Auth Security  (run ONCE on an existing database)
+-- Supabase dashboard → SQL Editor → New query → Run
+-- ALSO: Auth → Settings → Email Confirmations → OFF
+-- ================================================================
+
+-- Link Supabase Auth users to reps
+alter table reps add column if not exists auth_uid uuid;
+
+-- Drop the old permissive write policies for sales
+drop policy if exists "sales_delete" on sales;
+drop policy if exists "sales_update" on sales;
+
+-- Reps can only delete/update their own sales.
+-- Leads can delete/update any sale (for corrections).
+create policy "sales_delete_v2" on sales for delete using (
+  rep_id in (select id from reps where auth_uid = auth.uid())
+  or exists (select 1 from reps where auth_uid = auth.uid() and role = 'lead')
+);
+
+create policy "sales_update_v2" on sales for update using (
+  rep_id in (select id from reps where auth_uid = auth.uid())
+  or exists (select 1 from reps where auth_uid = auth.uid() and role = 'lead')
+);
+
+-- Only authenticated sessions can insert new sales or reps
+drop policy if exists "sales_insert" on sales;
+drop policy if exists "reps_insert" on reps;
+
+create policy "sales_insert_v2" on sales for insert with check (auth.uid() is not null);
+create policy "reps_insert_v2"  on reps  for insert with check (
+  exists (select 1 from reps where auth_uid = auth.uid() and role = 'lead')
+);
+
+-- ================================================================
+-- After running: deploy the reset-pin Edge Function with:
+--   supabase functions deploy reset-pin
+-- ================================================================

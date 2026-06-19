@@ -542,6 +542,37 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 0 16px 10px;
   border-color: var(--blue);
 }
 
+/* ── CPH / ACPH ─────────────────────────────────────────────────── */
+.ck.o { background: var(--amber-faint); color: var(--amber); }
+
+.shift-info-banner {
+  margin: 0 16px 10px;
+  background: var(--blue-faint);
+  border: 1px solid var(--blue-light);
+  border-radius: var(--rs);
+  padding: 10px 14px;
+  font-size: 13px; font-weight: 600; color: var(--blue);
+}
+
+.roster-past-banner {
+  background: var(--amber-faint);
+  border-radius: var(--rxs);
+  padding: 8px 12px;
+  font-size: 12px; font-weight: 600; color: var(--amber);
+  margin-bottom: 12px;
+}
+
+.roster-hrs-input {
+  width: 52px; padding: 6px 6px;
+  border-radius: var(--rxs);
+  border: 1.5px solid var(--border2);
+  background: var(--bg);
+  font-size: 14px; font-weight: 700;
+  text-align: center; color: var(--text);
+  font-family: inherit;
+}
+.roster-hrs-input:disabled { opacity: .35; }
+
 /* ── BACK BUTTON ───────────────────────────────────────────────── */
 .btn-back {
   font-size: 14px; font-weight: 700; color: var(--blue);
