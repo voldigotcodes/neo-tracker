@@ -97,42 +97,56 @@ window.doLogin = async function() {
   if (!email || !pin) { err.textContent='Enter your email and PIN.'; err.classList.add('show'); return; }
   btn.disabled = true; btn.textContent = 'Signing in…';
   err.classList.remove('show');
+
+  // ── Step 1: verify credentials only (isolated try/catch)
+  let repData;
   try {
     const hash = await hashPin(pin);
     const { data, error } = await db.from('reps')
       .select('*').eq('email', email).eq('pin_hash', hash).eq('active', true).single();
-    if (error || !data) throw new Error('Not found');
-
-    // Sync Supabase Auth session — creates account on first login, signs in on subsequent ones
-    if (data.auth_uid) {
-      await db.auth.signInWithPassword({ email, password: hash }).catch(console.warn);
-    } else {
-      const { data: authUser } = await db.auth.signUp({ email, password: hash }).catch(() => ({ data: null }));
-      if (authUser?.user?.id) {
-        data.auth_uid = authUser.user.id;
-        db.from('reps').update({ auth_uid: authUser.user.id }).eq('id', data.id).catch(console.warn);
-      }
-    }
-
-    session = data;
-    sessionStorage.setItem('neo_session', JSON.stringify(data));
-    if (data.must_change_pin) {
-      $('view-login').classList.remove('active');
-      $('view-change-pin').classList.add('active');
+    // PGRST116 = "0 rows" → wrong credentials; any other error → connection issue
+    if (error?.code === 'PGRST116' || !data) {
+      err.textContent = 'Incorrect email or PIN. Try again.';
+      err.classList.add('show');
       btn.disabled = false; btn.textContent = 'Sign in';
       return;
     }
-    await bootApp();
+    if (error) throw error; // network / server error → caught below
+    repData = data;
+    // Sync Supabase Auth in background — never blocks login
+    if (data.auth_uid) {
+      db.auth.signInWithPassword({ email, password: hash }).catch(console.warn);
+    } else {
+      db.auth.signUp({ email, password: hash })
+        .then(({ data: au }) => {
+          if (au?.user?.id) {
+            repData.auth_uid = au.user.id;
+            db.from('reps').update({ auth_uid: au.user.id }).eq('id', data.id).catch(console.warn);
+          }
+        }).catch(console.warn);
+    }
   } catch {
-    err.textContent = 'Incorrect email or PIN. Try again.';
+    err.textContent = 'Connection error. Please try again.';
     err.classList.add('show');
     btn.disabled = false; btn.textContent = 'Sign in';
+    return;
   }
+
+  // ── Step 2: session + boot (errors here don't blame the user's credentials)
+  session = repData;
+  localStorage.setItem('neo_session', JSON.stringify(repData));
+  if (repData.must_change_pin) {
+    $('view-login').classList.remove('active');
+    $('view-change-pin').classList.add('active');
+    btn.disabled = false; btn.textContent = 'Sign in';
+    return;
+  }
+  await bootApp();
 };
 
 window.doLogout = function() {
   db.auth.signOut().catch(console.warn);
-  sessionStorage.removeItem('neo_session');
+  localStorage.removeItem('neo_session');
   session = null;
   if (realtimeCh) { db.removeChannel(realtimeCh); realtimeCh = null; }
   $('lead-app').style.display = 'none';
@@ -163,7 +177,7 @@ window.doChangePin = async function() {
   if (error) { err.textContent = 'Error saving. Try again.'; err.classList.add('show'); btn.disabled=false; btn.textContent='Set PIN & continue'; return; }
   session.must_change_pin = false;
   session.pin_hash = pin_hash;
-  sessionStorage.setItem('neo_session', JSON.stringify(session));
+  localStorage.setItem('neo_session', JSON.stringify(session));
   db.auth.updateUser({ password: pin_hash }).catch(console.warn); // sync Auth password
   $('view-change-pin').classList.remove('active');
   $('pin-new').value = ''; $('pin-confirm').value = '';
@@ -203,7 +217,7 @@ async function bootApp() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  const saved = sessionStorage.getItem('neo_session');
+  const saved = localStorage.getItem('neo_session');
   if (saved) { session = JSON.parse(saved); await bootApp(); }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(console.error);
