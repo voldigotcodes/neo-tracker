@@ -34,6 +34,9 @@ export async function bootApp() {
   if (mall?.cph_target)  s.cphTarget  = parseFloat(mall.cph_target);
   if (mall?.acph_target) s.acphTarget = parseFloat(mall.acph_target);
 
+  const savedPeriod = localStorage.getItem('neo_dash_period');
+  if (savedPeriod) s.dashPeriod = savedPeriod;
+
   s.dashDate   = todayKey();
   s.feedDate   = todayKey();
   s.statsDate  = todayKey();

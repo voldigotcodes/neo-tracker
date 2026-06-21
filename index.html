@@ -320,15 +320,21 @@
     <div class="page-top">
       <div><div class="neo-logo">ne<em>o</em></div><div class="page-context">Dashboard</div></div>
       <div class="date-nav">
-        <button class="date-nav-btn" onclick="shiftDashDate(-1)">‹</button>
+        <button class="date-nav-btn" onclick="shiftDashPeriod(-1)">‹</button>
         <div class="today-pill today-pill-tap" id="dash-date" onclick="openCal('dash')"></div>
-        <button class="date-nav-btn" id="dash-next" onclick="shiftDashDate(1)" disabled>›</button>
+        <button class="date-nav-btn" id="dash-next" onclick="shiftDashPeriod(1)" disabled>›</button>
       </div>
+    </div>
+
+    <div class="modal-period-row" style="padding:8px 16px 4px">
+      <button class="modal-period-btn dash-period active" data-period="day"   onclick="setDashPeriod('day',this)">Day</button>
+      <button class="modal-period-btn dash-period"        data-period="week"  onclick="setDashPeriod('week',this)">Week</button>
+      <button class="modal-period-btn dash-period"        data-period="month" onclick="setDashPeriod('month',this)">Month</button>
     </div>
 
     <div class="kpi-grid">
       <div class="kpi" id="kpi-tot"><div class="kpi-val" id="k-tot">0</div><div class="kpi-lbl">Total sales</div></div>
-      <div class="kpi"><div class="kpi-val" id="k-tgt">—</div><div class="kpi-lbl">Day target</div></div>
+      <div class="kpi"><div class="kpi-val" id="k-tgt">—</div><div class="kpi-lbl" id="k-tgt-lbl">Day target</div></div>
       <div class="kpi" id="kpi-d0"><div class="kpi-val" id="k-d0">0%</div><div class="kpi-lbl">D0 rate</div></div>
       <div class="kpi" id="kpi-cr"><div class="kpi-val" id="k-cr">0%</div><div class="kpi-lbl">Credit mix</div></div>
     </div>
@@ -339,14 +345,14 @@
     </div>
 
     <div class="card"><div class="card-pad">
-      <div class="card-title">vs targets</div>
+      <div class="card-title" id="dash-target-title">vs targets</div>
       <div class="prog-row"><div class="prog-lbl">Sales</div><div class="prog-track"><div class="prog-fill" id="pf-s" style="width:0%"></div></div><div class="prog-val" id="pv-s">0</div></div>
       <div class="prog-row"><div class="prog-lbl">D0 rate</div><div class="prog-track"><div class="prog-fill" id="pf-d" style="width:0%"></div></div><div class="prog-val" id="pv-d">0%</div></div>
       <div class="prog-row"><div class="prog-lbl">Credit mix</div><div class="prog-track"><div class="prog-fill" id="pf-c" style="width:0%"></div></div><div class="prog-val" id="pv-c">0%</div></div>
     </div></div>
 
     <div class="card"><div class="card-pad">
-      <div class="card-title">This week</div>
+      <div class="card-title" id="dash-chart-title">This week</div>
       <div class="week" id="week"></div>
     </div></div>
 

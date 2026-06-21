@@ -15,6 +15,9 @@ export const s = {
   cphTarget:  2.0,
   acphTarget: 1.5,
 
+  // dashboard period
+  dashPeriod: 'day',   // 'day' | 'week' | 'month' — persisted to localStorage
+
   // active dates
   dashDate:   '',
   feedDate:   '',
