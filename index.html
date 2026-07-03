@@ -19,7 +19,7 @@
 <div id="view-login" class="view active">
   <div class="login-wrap">
     <div class="login-logo">ne<em>o</em></div>
-    <div class="login-sub">CF Promenade St-Bruno · Sales Tracker</div>
+    <div class="login-sub">Ontario East · Neo Sales Tracker</div>
     <div class="login-card">
       <div class="login-title">Sign in</div>
       <input class="login-field" type="email"    id="login-email" placeholder="Email address"  autocomplete="email" inputmode="email">
@@ -229,6 +229,9 @@
   </div></div>
 
   <span class="sec">Your contacts</span>
+  <div class="list-search-wrap" id="cx-search-wrap" style="display:none">
+    <input class="list-search" type="search" id="cx-search" placeholder="Search contacts…" autocomplete="off" oninput="filterContacts(this.value)">
+  </div>
   <div id="cx-list"><div class="empty">No contacts yet.</div></div>
   <div style="height:16px"></div>
 </div>
@@ -311,9 +314,77 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════
+     MANAGER / ADMIN APP
+══════════════════════════════════════════════════════ -->
+<div id="manager-app" style="display:none">
+
+  <!-- Persistent district context bar (always visible across all manager tabs) -->
+  <div class="mgr-context-bar">
+    <div class="neo-logo" style="font-size:18px;font-style:normal">ne<em>o</em></div>
+    <button class="mgr-district-pill" id="mgr-district-pill" onclick="openDistrictPicker()">
+      <span id="district-ctx">District</span>
+      <svg id="mgr-district-chev" viewBox="0 0 14 10" style="display:none;width:12px;height:12px;stroke:currentColor;stroke-width:2;fill:none;flex-shrink:0"><polyline points="1,2 7,8 13,2"/></svg>
+    </button>
+    <button class="btn-logout" onclick="doLogout()" style="font-size:12px;padding:5px 10px">Sign out</button>
+  </div>
+
+  <!-- DISTRICT OVERVIEW -->
+  <div id="lview-district" class="view active">
+    <div class="page-top" style="padding-top:8px">
+      <div class="page-context" style="font-size:13px;color:var(--text2)">Overview</div>
+      <div class="date-nav">
+        <button class="date-nav-btn" onclick="shiftDistrictPeriod(-1)">‹</button>
+        <div class="today-pill today-pill-tap" id="district-date" onclick="openDistrictCal()"></div>
+        <button class="date-nav-btn" id="district-next" onclick="shiftDistrictPeriod(1)" disabled>›</button>
+      </div>
+    </div>
+
+    <div class="modal-period-row" style="padding:4px 16px 4px">
+      <button class="modal-period-btn district-period active" data-period="day"   onclick="setDistrictPeriod('day',this)">Day</button>
+      <button class="modal-period-btn district-period"        data-period="week"  onclick="setDistrictPeriod('week',this)">Week</button>
+      <button class="modal-period-btn district-period"        data-period="month" onclick="setDistrictPeriod('month',this)">Month</button>
+    </div>
+
+    <!-- Aggregate KPIs -->
+    <div id="district-agg"></div>
+
+    <!-- Mall cards -->
+    <div class="section-hdr">Malls</div>
+    <div id="district-malls"></div>
+
+    <!-- Rep leaderboard -->
+    <div class="section-hdr">Rep leaderboard</div>
+    <div class="card"><div class="card-pad" id="district-leaderboard"></div></div>
+    <div style="height:16px"></div>
+  </div>
+
+  <!-- MANAGER MANAGE -->
+  <div id="lview-manage-mgr" class="view">
+    <div id="mgr-manage-content"><div class="empty">Loading…</div></div>
+    <div style="height:16px"></div>
+  </div>
+
+  <!-- MANAGER NAV -->
+  <nav class="nav" id="manager-nav">
+    <button class="nav-btn active" id="mnav-district" onclick="goManager('district')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>District
+    </button>
+    <button class="nav-btn" id="mnav-manage" onclick="goManager('manage')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round"/></svg>Manage
+    </button>
+  </nav>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
      LEAD APP
 ══════════════════════════════════════════════════════ -->
 <div id="lead-app" style="display:none">
+
+  <!-- Manager drill-in back button -->
+  <div id="dash-drillback" class="dash-drillback" style="display:none">
+    <button class="btn-back" onclick="backToDistrict()">← District</button>
+    <div class="dash-drillback-name" id="dash-drillback-name"></div>
+  </div>
 
   <!-- DASHBOARD -->
   <div id="lview-dash" class="view active">
@@ -376,7 +447,32 @@
       <div class="today-pill" id="manage-date"></div>
     </div>
 
-    <span class="sec first">Today's roster</span>
+    <!-- ── Account card ── -->
+    <span class="sec first">My account</span>
+    <div class="card"><div class="card-pad">
+      <div class="acct-row">
+        <div class="rep-av" id="acct-av"></div>
+        <div class="acct-info">
+          <div class="acct-name" id="acct-name"></div>
+          <div class="acct-email" id="acct-email"></div>
+          <div class="acct-meta" id="acct-meta"></div>
+        </div>
+        <button class="btn-logout" onclick="doLogout()">Sign out</button>
+      </div>
+      <button class="see-all-btn acct-pin-btn" onclick="toggleChangePinForm()">🔑 Change my PIN</button>
+      <div id="change-pin-form" class="change-pin-form" style="display:none">
+        <input class="input" type="password" id="change-current-pin" placeholder="Current PIN" inputmode="numeric" maxlength="6">
+        <input class="input" type="password" id="change-new-pin"     placeholder="New PIN (4–6 digits)" inputmode="numeric" maxlength="6">
+        <input class="input" type="password" id="change-confirm-pin" placeholder="Confirm new PIN" inputmode="numeric" maxlength="6">
+        <div id="change-pin-err" style="display:none;color:var(--red);font-size:13px;padding:2px 0"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-primary"   style="flex:1" onclick="submitChangePin()">Save PIN</button>
+          <button class="btn-secondary" style="flex:1" onclick="toggleChangePinForm()">Cancel</button>
+        </div>
+      </div>
+    </div></div>
+
+    <span class="sec">Today's roster</span>
     <div class="card"><div class="card-pad">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div class="card-title">Who's working</div>
@@ -430,13 +526,6 @@
       <button class="btn-secondary" onclick="resetPin()">Reset PIN</button>
     </div></div>
 
-    <span class="sec">Account</span>
-    <div class="card">
-      <div class="logout-row">
-        <span id="lead-email-display"></span>
-        <button class="btn-logout" onclick="doLogout()">Sign out</button>
-      </div>
-    </div>
     <div style="height:16px"></div>
   </div>
 
@@ -450,7 +539,7 @@
       <div class="rep-av" id="profile-av"></div>
       <div>
         <div class="profile-name" id="profile-name"></div>
-        <div class="profile-sub">CF Promenade St-Bruno</div>
+        <div class="profile-sub" id="profile-sub"></div>
       </div>
     </div>
     <div class="modal-period-row" style="padding:0 16px 12px">
@@ -536,6 +625,29 @@
     <button class="cal-nav-btn" id="cal-next" onclick="calShiftMonth(1)">›</button>
   </div>
   <div class="cal-grid" id="cal-grid"></div>
+</div>
+
+<!-- District picker sheet (admin only) -->
+<div id="district-picker-overlay" onclick="closeDistrictPicker()" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4)"></div>
+<div id="district-picker-sheet" class="modal-sheet" style="display:none;z-index:201">
+  <div class="modal-handle"></div>
+  <div style="padding:16px 20px 8px;font-size:13px;font-weight:700;color:var(--text3);letter-spacing:.04em;text-transform:uppercase">Switch district</div>
+  <div id="district-picker-list"></div>
+  <div style="height:24px"></div>
+</div>
+
+<!-- Rep search sheet (district leaderboard "See all") -->
+<div id="rep-search-overlay" onclick="closeRepSheet()" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4)"></div>
+<div id="rep-search-sheet" class="modal-sheet rep-search-sheet" style="display:none;z-index:201">
+  <div class="modal-handle"></div>
+  <div class="rep-sheet-header">
+    <div class="rep-sheet-title" id="rep-sheet-title">All Reps</div>
+    <button class="rep-sheet-close" onclick="closeRepSheet()">✕</button>
+  </div>
+  <div class="list-search-wrap">
+    <input class="list-search" id="rep-sheet-search" type="search" placeholder="Search reps…" oninput="filterRepSheet(this.value)" autocomplete="off">
+  </div>
+  <div id="rep-sheet-list" class="rep-sheet-list"></div>
 </div>
 
 <script type="module" src="/js/boot.js"></script>

@@ -2,12 +2,12 @@
 import { db }              from '../supabase.js';
 import { s }               from './state.js';
 import { $, pct, todayKey, shiftDateStr, updateDatePill, fetchSalesByDate } from './utils.js';
-import { MALL_ID, DAY_SHORT, D0_TGT, CR_TGT } from './constants.js';
+import { DAY_SHORT, D0_TGT, CR_TGT } from './constants.js';
 import { buildFeedHTML }   from './feed.js';
 
 export async function renderRepStats() {
   $('stats-context').textContent = s.session.name;
-  const today = await fetchSalesByDate(s.statsDate);
+  const today = await fetchSalesByDate(s.statsDate, s.activeMallId);
   const mine  = today.filter(r => r.rep_id === s.session.id);
   const dow   = new Date(s.statsDate + 'T12:00:00').getDay();
   const tgt   = s.targets[dow] || 10;
@@ -35,7 +35,7 @@ export async function renderRepStats() {
   const mon    = new Date(now); mon.setDate(now.getDate() - monOff);
   const monKey = mon.toISOString().slice(0, 10);
   const { data: weekData } = await db.from('sales')
-    .select('sale_date').eq('mall_id', MALL_ID).eq('rep_id', s.session.id).gte('sale_date', monKey);
+    .select('sale_date').eq('mall_id', s.activeMallId).eq('rep_id', s.session.id).gte('sale_date', monKey);
   const wd = DAY_SHORT.map((d, i) => {
     const dt  = new Date(mon); dt.setDate(mon.getDate() + i);
     const k   = dt.toISOString().slice(0, 10);

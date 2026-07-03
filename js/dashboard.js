@@ -2,7 +2,7 @@
 import { db }              from '../supabase.js';
 import { s }               from './state.js';
 import { $, pct, todayKey, shiftDateStr, fmtDateStr } from './utils.js';
-import { MALL_ID, DAY_SHORT, D0_TGT, CR_TGT } from './constants.js';
+import { DAY_SHORT, D0_TGT, CR_TGT } from './constants.js';
 
 // ── Helpers ───────────────────────────────────────────────────────
 function weekRange(dateStr) {
@@ -106,7 +106,7 @@ export async function renderDash() {
 
   // ── Fetch sales ────────────────────────────────────────────────
   const { data: salesData } = await db.from('sales').select('*')
-    .eq('mall_id', MALL_ID).gte('sale_date', fromDate).lte('sale_date', toDate).order('created_at');
+    .eq('mall_id', s.activeMallId).gte('sale_date', fromDate).lte('sale_date', toDate).order('created_at');
   const salesAll = salesData || [];
 
   const tot = salesAll.length;
@@ -129,7 +129,7 @@ export async function renderDash() {
 
   // ── CPH / ACPH (shifts for full period) ───────────────────────
   const { data: shiftRows } = await db.from('shifts')
-    .select('rep_id, hours').eq('mall_id', MALL_ID)
+    .select('rep_id, hours').eq('mall_id', s.activeMallId)
     .gte('shift_date', fromDate).lte('shift_date', toDate);
   const shiftRepMap = {};
   (shiftRows || []).forEach(r => {
@@ -197,7 +197,7 @@ export async function renderDash() {
       chartTitle = 'This week';
       const monKey = mon.toISOString().slice(0, 10);
       const { data: wkData } = await db.from('sales')
-        .select('sale_date').eq('mall_id', MALL_ID).gte('sale_date', monKey);
+        .select('sale_date').eq('mall_id', s.activeMallId).gte('sale_date', monKey);
       (wkData || []).forEach(r => { dm[r.sale_date] = (dm[r.sale_date] || 0) + 1; });
     }
 

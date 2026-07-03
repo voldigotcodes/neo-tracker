@@ -2,8 +2,7 @@
 // Imports all modules, wires up login/logout/changePin, boots the app.
 import { db }                    from '../supabase.js';
 import { s }                     from './state.js';
-import { $, todayKey, initDates } from './utils.js';
-import { MALL_ID }               from './constants.js';
+import { $, todayKey, initDates, haptic } from './utils.js';
 import { hashPin }               from './auth.js';
 import { drainQueue }            from './offline.js';
 import { populateRepSelect }     from './manage.js';
@@ -23,39 +22,91 @@ import './calendar.js';
 import './roster.js';
 import './profile.js';
 import './contacts.js';
+import './district.js';
 
 // ── Boot ─────────────────────────────────────────────────────────
 export async function bootApp() {
   $('view-login').classList.remove('active');
 
-  const { data: mall } = await db.from('malls')
-    .select('targets, cph_target, acph_target').eq('id', MALL_ID).single();
-  if (mall?.targets)    s.targets   = mall.targets;
-  if (mall?.cph_target)  s.cphTarget  = parseFloat(mall.cph_target);
-  if (mall?.acph_target) s.acphTarget = parseFloat(mall.acph_target);
+  const isManager = s.session.role === 'manager' || s.session.role === 'admin';
+  const isLead    = s.session.role === 'lead';
+  const isRep     = s.session.role === 'rep';
 
-  const savedPeriod = localStorage.getItem('neo_dash_period');
-  if (savedPeriod) s.dashPeriod = savedPeriod;
+  s.dashDate      = todayKey();
+  s.districtDate  = todayKey();
+  s.feedDate      = todayKey();
+  s.statsDate     = todayKey();
+  s.rosterDate    = todayKey();
 
-  s.dashDate   = todayKey();
-  s.feedDate   = todayKey();
-  s.statsDate  = todayKey();
-  s.rosterDate = todayKey();
+  // Restore saved period preferences
+  const savedDashPeriod     = localStorage.getItem('neo_dash_period');
+  const savedDistrictPeriod = localStorage.getItem('neo_district_period');
+  if (savedDashPeriod)     s.dashPeriod     = savedDashPeriod;
+  if (savedDistrictPeriod) s.districtPeriod = savedDistrictPeriod;
 
-  await populateRepSelect();
+  if (isManager) {
+    // Load all districts (admin sees all; manager sees their own)
+    if (s.session.role === 'admin') {
+      const { data: dists } = await db.from('districts').select('id, name').order('name');
+      s.districts          = dists || [];
+      // Default to showing all districts combined
+      s.activeDistrictId   = 'all';
+      s.activeDistrictName = 'All Districts';
+    } else {
+      s.activeDistrictId = s.session.district_id || '';
+      const { data } = await db.from('districts').select('name').eq('id', s.activeDistrictId).single();
+      s.activeDistrictName = data?.name || 'District';
+    }
 
-  if (s.session.role === 'lead') {
-    $('lead-app').style.display    = 'block';
-    $('lead-email-display').textContent = s.session.email;
-    window.goLead('dash');
+    // Load malls: admin loads all, manager loads by district
+    const mallQ = s.session.role === 'admin'
+      ? db.from('malls').select('id, name, district_id, targets, cph_target, acph_target').order('name')
+      : db.from('malls').select('id, name, district_id, targets, cph_target, acph_target').eq('district_id', s.activeDistrictId).order('name');
+    const { data: malls } = await mallQ;
+    s.districtMalls = malls || [];
+
+    $('manager-app').style.display    = 'block';
+    $('district-ctx').textContent     = s.activeDistrictName;
+
+    // Show district switcher chevron for all admins (always have "All Districts" option)
+    if (s.session.role === 'admin') {
+      const chev = $('mgr-district-chev');
+      if (chev) chev.style.display = 'inline';
+      const pill = $('mgr-district-pill');
+      if (pill) pill.style.cursor = 'pointer';
+    }
+
+    window.goManager('district');
     subscribeRealtime();
-    requestPushPermission();
+
   } else {
-    $('rep-app').style.display    = 'block';
-    $('rep-email-display').textContent = s.session.email;
-    window.goRep('log');
-    subscribeRealtime();
-    requestPushPermission();
+    // Rep or Lead: set active mall from session
+    s.activeMallId   = s.session.mall_id || '';
+    s.activeMallName = s.session.mall_name || '';
+
+    // Load mall config
+    const { data: mall } = await db.from('malls')
+      .select('name, targets, cph_target, acph_target').eq('id', s.activeMallId).single();
+    if (mall?.name)        s.activeMallName = mall.name;
+    if (mall?.targets)     s.targets        = mall.targets;
+    if (mall?.cph_target)  s.cphTarget      = parseFloat(mall.cph_target);
+    if (mall?.acph_target) s.acphTarget     = parseFloat(mall.acph_target);
+
+    await populateRepSelect();
+
+    if (isLead) {
+      $('lead-app').style.display          = 'block';
+      $('lead-email-display').textContent  = s.session.email;
+      window.goLead('dash');
+      subscribeRealtime();
+      requestPushPermission();
+    } else {
+      $('rep-app').style.display           = 'block';
+      $('rep-email-display').textContent   = s.session.email;
+      window.goRep('log');
+      subscribeRealtime();
+      requestPushPermission();
+    }
   }
 
   initDates();
@@ -96,6 +147,7 @@ window.doLogin = async function() {
     const { data, error } = await db.from('reps')
       .select('*').eq('email', email).eq('pin_hash', hash).eq('active', true).single();
     if (error?.code === 'PGRST116' || !data) {
+      haptic('error');
       err.textContent = 'Incorrect email or PIN. Try again.';
       err.classList.add('show');
       btn.disabled = false; btn.textContent = 'Sign in';
@@ -116,6 +168,7 @@ window.doLogin = async function() {
         }).catch(console.warn);
     }
   } catch {
+    haptic('error');
     err.textContent = 'Connection error. Please try again.';
     err.classList.add('show');
     btn.disabled = false; btn.textContent = 'Sign in';
@@ -163,6 +216,16 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(console.error);
+  }
+
+  // Haptic tap on each PIN digit typed
+  const pinField = $('login-pin');
+  if (pinField) {
+    let _lastLen = 0;
+    pinField.addEventListener('input', () => {
+      if (pinField.value.length > _lastLen) haptic('tap');
+      _lastLen = pinField.value.length;
+    });
   }
 
   const dc = $('dep-custom');

@@ -2,7 +2,7 @@
 import { db }             from '../supabase.js';
 import { s }              from './state.js';
 import { $ }              from './utils.js';
-import { MALL_ID, VAPID_PUBLIC } from './constants.js';
+import { VAPID_PUBLIC } from './constants.js';
 import { renderDash }     from './dashboard.js';
 import { renderRepFeed, renderLeadFeed } from './feed.js';
 import { renderRepStats } from './stats.js';
@@ -11,7 +11,7 @@ import { renderContacts } from './contacts.js';
 export function subscribeRealtime() {
   if (s.realtimeCh) db.removeChannel(s.realtimeCh);
   s.realtimeCh = db.channel('neo-live')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'sales', filter: `mall_id=eq.${MALL_ID}` },
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'sales', filter: `mall_id=eq.${s.activeMallId}` },
       () => {
         if (s.session.role === 'lead') {
           if ($('lview-dash')?.classList.contains('active')) renderDash();

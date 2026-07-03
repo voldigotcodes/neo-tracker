@@ -1,8 +1,8 @@
 // ── REP MODAL + FULL-PAGE PROFILE ────────────────────────────────
 import { db }              from '../supabase.js';
 import { s }               from './state.js';
-import { $, pct, todayKey, fmtDateStr, updateDatePill } from './utils.js';
-import { MALL_ID, DAY_SHORT, D0_TGT, CR_TGT } from './constants.js';
+import { $, pct, todayKey, fmtDateStr, updateDatePill, withTransition } from './utils.js';
+import { DAY_SHORT, D0_TGT, CR_TGT } from './constants.js';
 
 // ── Shared data fetcher ───────────────────────────────────────────
 async function fetchPeriodData(repId, refDate, period) {
@@ -13,7 +13,7 @@ async function fetchPeriodData(repId, refDate, period) {
 
   if (period === 'day') {
     const { data } = await db.from('sales').select('*')
-      .eq('mall_id', MALL_ID).eq('rep_id', repId).eq('sale_date', refDate);
+      .eq('mall_id', s.activeMallId).eq('rep_id', repId).eq('sale_date', refDate);
     sales    = data || [];
     chartLbl = fmtDateStr(refDate);
     const hm = {}, nowH = new Date().getHours();
@@ -28,7 +28,7 @@ async function fetchPeriodData(repId, refDate, period) {
     fromDate = mon.toISOString().slice(0, 10);
     toDate   = sun.toISOString().slice(0, 10);
     const { data } = await db.from('sales').select('*')
-      .eq('mall_id', MALL_ID).eq('rep_id', repId)
+      .eq('mall_id', s.activeMallId).eq('rep_id', repId)
       .gte('sale_date', fromDate).lte('sale_date', toDate);
     sales    = data || [];
     chartLbl = 'This week';
@@ -45,7 +45,7 @@ async function fetchPeriodData(repId, refDate, period) {
     fromDate = new Date(y, m, 1).toISOString().slice(0, 10);
     toDate   = new Date(y, m + 1, 0).toISOString().slice(0, 10);
     const { data } = await db.from('sales').select('*')
-      .eq('mall_id', MALL_ID).eq('rep_id', repId)
+      .eq('mall_id', s.activeMallId).eq('rep_id', repId)
       .gte('sale_date', fromDate).lte('sale_date', toDate);
     sales    = data || [];
     chartLbl = ref.toLocaleDateString('en-CA', { month:'long', year:'numeric' });
@@ -110,14 +110,16 @@ function renderKpisAndChart(sales, chartBars, chartLbl, kpiEl, chartLblEl, chart
 }
 
 // ── REP MODAL ────────────────────────────────────────────────────
-window.openRepModal = async function(repName, date, repId) {
+// mallId is optional — only needed when opening from district view where s.activeMallId isn't set
+window.openRepModal = async function(repName, date, repId, mallId) {
   s.modalRepName = repName;
   s.modalRepId   = repId;
   s.modalRefDate = date;
+  if (mallId) s.activeMallId = mallId;   // set scope for fetchPeriodData
   const ini = repName.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase();
   $('modal-av').textContent       = ini;
   $('modal-rep-name').textContent = repName;
-  $('modal-rep-sub').textContent  = 'CF Promenade St-Bruno';
+  $('modal-rep-sub').textContent  = s.activeMallName || '';
   document.querySelectorAll('.modal-period-btn').forEach((b, i) => b.classList.toggle('active', i === 1));
   $('rep-modal-overlay').style.display = 'block';
   $('rep-modal').style.display         = 'flex';
@@ -139,32 +141,66 @@ window.closeRepModal = function() {
 };
 
 // ── FULL-PAGE PROFILE ─────────────────────────────────────────────
-window.openRepProfile = function(repName, repId, fromView) {
+// mallId is optional — pass when opening from district view so fetchPeriodData has a scope
+window.openRepProfile = function(repName, repId, fromView, mallId) {
   s.profileRepName  = repName;
   s.profileRepId    = repId;
   s.profilePrevView = fromView || 'dash';
-  s.profileDate     = s.dashDate || todayKey();
+  s.profileDate     = s.dashDate || s.districtDate || todayKey();
+  if (mallId) s.activeMallId = mallId;   // set scope for fetchPeriodData
   const ini = repName.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase();
   $('profile-av').textContent   = ini;
   $('profile-name').textContent = repName;
+  if ($('profile-sub')) $('profile-sub').textContent = s.activeMallName || '';
   updateDatePill('profile-date', s.profileDate);
   document.querySelectorAll('.profile-period').forEach((b, i) => b.classList.toggle('active', i === 1));
   s.profilePeriod = 'week';
-  ['lview-dash','lview-feed','lview-manage','view-log','view-contacts','lview-rep-profile']
-    .forEach(id => $(id).classList.remove('active'));
-  $('lview-rep-profile').classList.add('active');
-  document.querySelectorAll('#lead-nav .nav-btn').forEach(b => b.classList.remove('active'));
+
+  const isManager = s.session.role === 'manager' || s.session.role === 'admin';
+
+  withTransition('forward', () => {
+    if (isManager) {
+      // Temporarily switch to lead-app context to show profile
+      $('manager-app').style.display = 'none';
+      $('lead-app').style.display    = 'block';
+      $('lead-nav').style.display    = 'none';
+      $('dash-drillback').style.display = 'none';
+    }
+    ['lview-dash','lview-feed','lview-manage','view-log','view-contacts','lview-rep-profile']
+      .forEach(id => $(id).classList.remove('active'));
+    $('lview-rep-profile').classList.add('active');
+    document.querySelectorAll('#lead-nav .nav-btn').forEach(b => b.classList.remove('active'));
+  });
   renderProfileData();
 };
 
 window.closeRepProfile = function() {
-  $('lview-rep-profile').classList.remove('active');
-  window.goLead(s.profilePrevView);
+  const isManager = s.session.role === 'manager' || s.session.role === 'admin';
+  withTransition('back', () => {
+    $('lview-rep-profile').classList.remove('active');
+    if (isManager) {
+      $('lead-app').style.display    = 'none';
+      $('lead-nav').style.display    = '';
+      $('manager-app').style.display = 'block';
+      if (s.profilePrevView === 'mall-drill') {
+        $('lview-dash').classList.add('active');
+        $('dash-drillback').style.display = '';
+      } else {
+        window.goManager(s.profilePrevView === 'manage' ? 'manage' : 'district');
+      }
+    } else {
+      window.goLead(s.profilePrevView);
+    }
+  });
 };
 
 window.expandRepProfile = function() {
   window.closeRepModal();
-  window.openRepProfile(s.modalRepName, s.modalRepId, 'dash');
+  const isManager = s.session.role === 'manager' || s.session.role === 'admin';
+  const prevView  = isManager
+    ? (s.activeMallId ? 'mall-drill' : 'district')
+    : 'dash';
+  window.openRepProfile(s.modalRepName, s.modalRepId, prevView);
 };
 
 window.setProfilePeriod = function(period, btn) {

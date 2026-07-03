@@ -2,7 +2,6 @@
 import { db }                          from '../supabase.js';
 import { s }                           from './state.js';
 import { $, todayKey, fmtDateStr, shiftDateStr } from './utils.js';
-import { MALL_ID }                     from './constants.js';
 import { renderDash }                  from './dashboard.js';
 import { renderLeadFeed }              from './feed.js';
 import { renderRoster }                from './roster.js';
@@ -10,9 +9,10 @@ import { renderProfileData, updateProfileDate } from './profile.js';
 
 export async function openCal(target) {
   s.calTarget = target;
-  const current = target === 'dash'    ? s.dashDate
-    : target === 'profile' ? s.profileDate
-    : target === 'roster'  ? s.rosterDate
+  const current = target === 'dash'     ? s.dashDate
+    : target === 'district' ? s.districtDate
+    : target === 'profile'  ? s.profileDate
+    : target === 'roster'   ? s.rosterDate
     : s.feedDate;
   s.calMonth = current.slice(0, 7);
   await fetchCalActive();
@@ -31,10 +31,22 @@ async function fetchCalActive() {
   const from   = `${s.calMonth}-01`;
   const last   = new Date(y, m, 0).getDate();
   const to     = `${s.calMonth}-${String(last).padStart(2,'0')}`;
-  const { data } = await db.from('sales')
-    .select('sale_date').eq('mall_id', MALL_ID)
-    .gte('sale_date', from).lte('sale_date', to);
-  s.calActive = new Set((data || []).map(d => d.sale_date));
+  // District calendar: show dots for any mall in district; mall calendar: just this mall
+  if (s.calTarget === 'district') {
+    const mallIds = s.districtMalls.filter(m2 =>
+      !s.activeDistrictId || m2.district_id === s.activeDistrictId
+    ).map(m2 => m2.id);
+    if (!mallIds.length) { s.calActive = new Set(); return; }
+    const { data } = await db.from('sales')
+      .select('sale_date').in('mall_id', mallIds)
+      .gte('sale_date', from).lte('sale_date', to);
+    s.calActive = new Set((data || []).map(d => d.sale_date));
+  } else {
+    const { data } = await db.from('sales')
+      .select('sale_date').eq('mall_id', s.activeMallId)
+      .gte('sale_date', from).lte('sale_date', to);
+    s.calActive = new Set((data || []).map(d => d.sale_date));
+  }
 }
 
 function renderCal(selectedDate) {
@@ -84,9 +96,10 @@ export async function calShiftMonth(n) {
   if (s.calTarget === 'dash' && next < shiftDateStr(todayKey(), -2).slice(0, 7)) return;
   s.calMonth = next;
   await fetchCalActive();
-  const sel = s.calTarget === 'dash'    ? s.dashDate
-    : s.calTarget === 'profile' ? s.profileDate
-    : s.calTarget === 'roster'  ? s.rosterDate
+  const sel = s.calTarget === 'dash'     ? s.dashDate
+    : s.calTarget === 'district' ? s.districtDate
+    : s.calTarget === 'profile'  ? s.profileDate
+    : s.calTarget === 'roster'   ? s.rosterDate
     : s.feedDate;
   renderCal(sel);
 }
@@ -95,6 +108,9 @@ export function calPick(date) {
   if (s.calTarget === 'dash') {
     s.dashDate = date;
     renderDash();
+  } else if (s.calTarget === 'district') {
+    s.districtDate = date;
+    if (window.renderDistrict) window.renderDistrict();
   } else if (s.calTarget === 'profile') {
     s.profileDate = date;
     updateProfileDate(date);

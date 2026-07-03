@@ -2,7 +2,6 @@
 import { db }              from '../supabase.js';
 import { s }               from './state.js';
 import { $, toast, todayKey, shiftDateStr, updateDatePill } from './utils.js';
-import { MALL_ID }         from './constants.js';
 import { renderDash }      from './dashboard.js';
 
 export async function renderRoster() {
@@ -13,10 +12,10 @@ export async function renderRoster() {
   $('roster-save-btn').textContent      = isPast ? 'Update past roster' : 'Save roster';
 
   const [{ data: reps }, { data: shifts }, salesResp] = await Promise.all([
-    db.from('reps').select('id, name, role').eq('mall_id', MALL_ID).eq('active', true).order('name'),
-    db.from('shifts').select('rep_id, hours').eq('mall_id', MALL_ID).eq('shift_date', s.rosterDate),
+    db.from('reps').select('id, name, role').eq('mall_id', s.activeMallId).eq('active', true).order('name'),
+    db.from('shifts').select('rep_id, hours').eq('mall_id', s.activeMallId).eq('shift_date', s.rosterDate),
     isPast
-      ? db.from('sales').select('rep_id, activated').eq('mall_id', MALL_ID).eq('sale_date', s.rosterDate)
+      ? db.from('sales').select('rep_id, activated').eq('mall_id', s.activeMallId).eq('sale_date', s.rosterDate)
       : { data: [] },
   ]);
 
@@ -87,12 +86,12 @@ window.saveRoster = async function() {
     const repId = row.dataset.repId;
     const isOn  = row.querySelector('.tog').classList.contains('on');
     const hrs   = parseFloat(row.querySelector('.roster-hrs-input').value);
-    if (isOn && hrs > 0) upserts.push({ mall_id: MALL_ID, rep_id: repId, shift_date: s.rosterDate, hours: hrs });
+    if (isOn && hrs > 0) upserts.push({ mall_id: s.activeMallId, rep_id: repId, shift_date: s.rosterDate, hours: hrs });
     else toDelete.push(repId);
   });
   const ops = [];
   if (upserts.length)  ops.push(db.from('shifts').upsert(upserts, { onConflict: 'rep_id,shift_date' }));
-  if (toDelete.length) ops.push(db.from('shifts').delete().eq('mall_id', MALL_ID).eq('shift_date', s.rosterDate).in('rep_id', toDelete));
+  if (toDelete.length) ops.push(db.from('shifts').delete().eq('mall_id', s.activeMallId).eq('shift_date', s.rosterDate).in('rep_id', toDelete));
   await Promise.all(ops);
   toast('Roster saved ✓');
   if (s.rosterDate === s.dashDate) renderDash();
@@ -102,7 +101,7 @@ window.saveCphTargets = async function() {
   const cph  = parseFloat($('cph-target-input').value);
   const acph = parseFloat($('acph-target-input').value);
   if (!cph || !acph || cph <= 0 || acph <= 0) { toast('Enter valid targets'); return; }
-  const { error } = await db.from('malls').update({ cph_target: cph, acph_target: acph }).eq('id', MALL_ID);
+  const { error } = await db.from('malls').update({ cph_target: cph, acph_target: acph }).eq('id', s.activeMallId);
   if (error) { toast('Error saving targets'); return; }
   s.cphTarget = cph; s.acphTarget = acph;
   toast('CPH targets saved ✓');

@@ -2,7 +2,6 @@
 import { db }              from '../supabase.js';
 import { s }               from './state.js';
 import { $, toast, todayKey, fmtDateStr, getLabels, fetchSalesByDate } from './utils.js';
-import { MALL_ID }         from './constants.js';
 import { hasCredit, hasDebit, hasSecured, syncCart, resetForm } from './log.js';
 
 export function buildFeedHTML(sales, canDelete = false, allowEdit = false) {
@@ -40,12 +39,12 @@ export function buildFeedHTML(sales, canDelete = false, allowEdit = false) {
 }
 
 export async function renderRepFeed() {
-  const sales = await fetchSalesByDate(todayKey());
+  const sales = await fetchSalesByDate(todayKey(), s.activeMallId);
   $('feed').innerHTML = buildFeedHTML(sales, true, true);
 }
 
 export async function renderLeadFeed() {
-  const sales = await fetchSalesByDate(todayKey());
+  const sales = await fetchSalesByDate(todayKey(), s.activeMallId);
   $('lfeed').innerHTML = buildFeedHTML(sales, true, true);
 }
 

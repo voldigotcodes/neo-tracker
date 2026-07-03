@@ -684,3 +684,456 @@ hr.div { border: none; border-top: 1px solid var(--border); margin: 0 16px 10px;
 .btn-delete-rep {
   background: var(--red-faint); color: var(--red);
 }
+
+/* ── MANAGER CONTEXT BAR ───────────────────────────────────────── */
+.mgr-context-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(242, 245, 250, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.mgr-district-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--bg2);
+  border: none;
+  border-radius: 20px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: default;
+  text-align: left;
+}
+.mgr-district-pill:active { opacity: .7; }
+
+/* District picker bottom sheet options */
+.district-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  -webkit-tap-highlight-color: transparent;
+}
+.district-picker-option:last-child { border-bottom: none; }
+.district-picker-option:active { background: var(--bg2); }
+.district-picker-option.active { color: var(--blue); }
+.district-picker-name { flex: 1; }
+
+/* ── MANAGER / DISTRICT STYLES ─────────────────────────────────── */
+
+/* Drill-back bar at top of lead-app when manager drills into a mall */
+.dash-drillback {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(242, 245, 250, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.dash-drillback-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+}
+
+/* Mall cards in district overview */
+.mall-card {
+  background: var(--surface);
+  border-radius: var(--rc);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin: 0 16px 12px;
+  cursor: pointer;
+  transition: transform .1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mall-card:active { transform: scale(.98); }
+.mall-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.mall-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  flex: 1;
+}
+.mall-card-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+/* Rep leaderboard mall tag */
+.leaderboard-mall-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--blue-faint);
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  flex-shrink: 0;
+}
+
+/* Manager manage section header */
+.mgr-mall-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+/* Added-by label in manager rep list */
+.mrep-added-by {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+/* District select dropdown */
+.district-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--rs);
+  border: 1.5px solid var(--border2);
+  background: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  outline: none;
+  appearance: none;
+  margin-bottom: 6px;
+}
+
+/* Manager nav (2-tab layout) */
+#manager-nav {
+  display: flex;
+}
+#manager-nav .nav-btn {
+  flex: 1;
+}
+
+/* Manager role chip */
+.mrep-role.manager {
+  background: var(--green-faint, #edfaf3);
+  color: var(--green, #1ca563);
+}
+.mrep-role.admin {
+  background: #f3eeff;
+  color: #7c3aed;
+}
+
+/* District KPI grid (3-col) */
+#district-agg .kpi-grid {
+  padding: 0 16px;
+}
+
+/* ── SEE ALL / TOGGLE BUTTON ───────────────────────────────────── */
+.see-all-btn {
+  display: block;
+  width: 100%;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  letter-spacing: .01em;
+}
+.see-all-btn:active { opacity: .6; }
+
+/* ── MANAGER MALL ACCORDION ────────────────────────────────────── */
+.mgr-mall-accordion {
+  background: var(--surface);
+  border-radius: var(--rc);
+  box-shadow: var(--shadow);
+  margin: 0 16px 10px;
+  overflow: hidden;
+}
+.mgr-mall-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  gap: 12px;
+}
+.mgr-mall-accordion-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+.mgr-mall-accordion-sub {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+.mgr-mall-chev {
+  width: 14px; height: 14px;
+  stroke: var(--text3); stroke-width: 2;
+  fill: none; flex-shrink: 0;
+  transition: transform .2s;
+}
+.mgr-mall-accordion.open .mgr-mall-chev {
+  transform: rotate(180deg);
+}
+.mgr-mall-accordion-body {
+  padding: 0 16px 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Add rep inline form inside accordion */
+.mgr-add-rep-form {
+  background: var(--bg2);
+  border-radius: var(--rs);
+  padding: 12px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mgr-add-rep-form .input { margin-bottom: 0; }
+
+/* Utility: .input helper used in renderManageManager */
+.input {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--rs);
+  border: 1.5px solid var(--border2);
+  background: var(--bg);
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+select.input { appearance: none; }
+
+/* ── Search bars ─────────────────────────────────────────────── */
+.list-search-wrap {
+  padding: 0 0 4px;
+  position: relative;
+}
+.list-search {
+  display: block;
+  width: 100%;
+  padding: 10px 14px 10px 36px;
+  border-radius: var(--rs);
+  border: 1.5px solid var(--border2);
+  background: var(--bg);
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color .12s var(--snappy);
+  /* magnifier icon via background */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239BA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 16px;
+}
+.list-search:focus { border-color: var(--blue); }
+.list-search::-webkit-search-cancel-button { cursor: pointer; }
+.list-search-empty {
+  padding: 16px 0;
+  text-align: center;
+  color: var(--text3);
+}
+
+/* ── Rep search sheet ─────────────────────────────────────────── */
+.rep-search-sheet {
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.rep-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 10px;
+}
+.rep-sheet-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+}
+.rep-sheet-close {
+  background: var(--bg2);
+  border: none;
+  border-radius: 50%;
+  width: 30px; height: 30px;
+  font-size: 14px;
+  color: var(--text2);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.rep-search-sheet .list-search-wrap {
+  padding: 0 16px 8px;
+  flex-shrink: 0;
+}
+.rep-sheet-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0 16px 24px;
+  -webkit-overflow-scrolling: touch;
+}
+.rep-sheet-list .rep-row {
+  border-bottom: 1px solid var(--border);
+}
+.rep-sheet-list .rep-row:last-child { border-bottom: none; }
+
+/* ── Account card ─────────────────────────────────────────────── */
+.acct-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.acct-info { flex: 1; min-width: 0; }
+.acct-name  { font-size: 15px; font-weight: 700; color: var(--text); }
+.acct-email { font-size: 13px; color: var(--text2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acct-meta  { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.acct-pin-btn { margin-top: 4px; }
+.change-pin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.change-pin-form .input { margin-bottom: 0; }
+
+/* ================================================================
+   UX POLISH · VIEW TRANSITIONS + SPRING EASING + HAPTICS
+   ================================================================ */
+
+/* ── Spring easing overrides ──────────────────────────────────── */
+/* Bouncy spring for interactive elements */
+:root {
+  --spring:    cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out:  cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in:   cubic-bezier(0.32, 0, 0.67, 0);
+  --snappy:    cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Toggle switch — spring thumb movement */
+.tog::after { transition: transform .25s var(--spring); }
+.tog        { transition: background .2s var(--snappy); }
+
+/* Accordion chevron — spring rotation */
+.cat-chev  { transition: transform .25s var(--spring); }
+.tier-chev { transition: transform .22s var(--spring); }
+.mgr-mall-chev { transition: transform .25s var(--spring); }
+
+/* Nav buttons — snappy colour change */
+.nav-btn { transition: color .1s var(--snappy); }
+
+/* Product pills — spring tap */
+.prod   { transition: all .18s var(--spring); }
+.prod:active { transform: scale(.93); }
+
+/* Buttons — controlled press */
+.btn-primary   { transition: opacity .15s var(--snappy), transform .15s var(--spring); }
+.btn-secondary { transition: opacity .15s var(--snappy), transform .15s var(--spring); }
+.btn-primary:active, .btn-secondary:active { transform: scale(.97); }
+
+/* Modal period buttons */
+.modal-period-btn { transition: background .15s var(--snappy), color .15s var(--snappy); }
+.dash-period      { transition: background .15s var(--snappy), color .15s var(--snappy); }
+
+/* Field focus border — snappy */
+.login-field { transition: border-color .12s var(--snappy); }
+select.field, textarea.field, input.field { transition: border-color .12s var(--snappy); }
+.input { transition: border-color .12s var(--snappy); }
+
+/* Mall / rep card press */
+.mrep-row:active, .rep-row-clickable:active { transform: scale(.985); transition: transform .12s var(--spring); }
+
+/* ── Skeleton loading shimmer ─────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--bg2) 25%, var(--bg3) 50%, var(--bg2) 75%);
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--rs);
+  color: transparent !important;
+  pointer-events: none;
+}
+.skeleton * { visibility: hidden; }
+
+/* ── View Transitions API ─────────────────────────────────────── */
+/* Default: instant (no transition if API not used) */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0s;
+}
+
+/* Shared page-level clip so nothing overflows during slide */
+::view-transition-group(root) {
+  overflow: hidden;
+}
+
+/* ── Fade (tab switches) ── */
+@keyframes vt-fade-out { to   { opacity: 0; } }
+@keyframes vt-fade-in  { from { opacity: 0; } }
+
+[data-vt="fade"]::view-transition-old(root) {
+  animation: 140ms var(--snappy) vt-fade-out;
+}
+[data-vt="fade"]::view-transition-new(root) {
+  animation: 180ms var(--snappy) vt-fade-in;
+}
+
+/* ── Forward / drill-in (slide left) ── */
+@keyframes vt-slide-out-left  { to   { transform: translateX(-22%); opacity: 0; } }
+@keyframes vt-slide-in-right  { from { transform: translateX(100%); opacity: 0; } }
+
+[data-vt="forward"]::view-transition-old(root) {
+  animation: 300ms var(--ease-out) vt-slide-out-left;
+}
+[data-vt="forward"]::view-transition-new(root) {
+  animation: 300ms var(--ease-out) vt-slide-in-right;
+}
+
+/* ── Back (slide right) ── */
+@keyframes vt-slide-in-left   { from { transform: translateX(-22%); opacity: 0; } }
+@keyframes vt-slide-out-right { to   { transform: translateX(100%); opacity: 0; } }
+
+[data-vt="back"]::view-transition-old(root) {
+  animation: 300ms var(--ease-out) vt-slide-out-right;
+}
+[data-vt="back"]::view-transition-new(root) {
+  animation: 300ms var(--ease-out) vt-slide-in-left;
+}
+

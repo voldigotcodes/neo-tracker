@@ -1,6 +1,5 @@
 // ── UTILITIES ─────────────────────────────────────────────────────
-import { db }     from '../supabase.js';
-import { MALL_ID } from './constants.js';
+import { db } from '../supabase.js';
 
 export const $ = id => document.getElementById(id);
 
@@ -57,8 +56,25 @@ export function updateDatePill(elId, date) {
   if (el) el.textContent = fmtDateStr(date);
 }
 
-export async function fetchSalesByDate(date) {
+export async function fetchSalesByDate(date, mallId) {
   const { data } = await db.from('sales')
-    .select('*').eq('mall_id', MALL_ID).eq('sale_date', date).order('created_at');
+    .select('*').eq('mall_id', mallId).eq('sale_date', date).order('created_at');
   return data || [];
+}
+
+// ── HAPTIC FEEDBACK ───────────────────────────────────────────────
+// type: 'tap' | 'success' | 'error' | 'heavy'
+export function haptic(type = 'tap') {
+  if (!navigator.vibrate) return;
+  const patterns = { tap: 8, success: 80, error: [50, 40, 80], heavy: 150 };
+  navigator.vibrate(patterns[type] ?? 8);
+}
+
+// ── VIEW TRANSITIONS ──────────────────────────────────────────────
+// dir: 'fade' | 'forward' | 'back' | 'up' | 'down'
+export function withTransition(dir, fn) {
+  if (!document.startViewTransition) { fn(); return; }
+  document.documentElement.dataset.vt = dir || 'fade';
+  const t = document.startViewTransition(fn);
+  t.finished.finally(() => delete document.documentElement.dataset.vt);
 }

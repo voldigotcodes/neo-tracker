@@ -18,6 +18,18 @@ export const s = {
   // dashboard period
   dashPeriod: 'day',   // 'day' | 'week' | 'month' — persisted to localStorage
 
+  // dynamic mall scope (set at login; null for manager until they drill in)
+  activeMallId:       '',
+  activeMallName:     '',
+  activeDistrictId:   '',
+  activeDistrictName: '',
+
+  // manager district overview
+  districtDate:    '',
+  districtPeriod:  'day',
+  districtMalls:   [],   // [{id, name, district_id, targets, cph_target, acph_target}]
+  districts:       [],   // [{id, name}] — admin only
+
   // active dates
   dashDate:   '',
   feedDate:   '',

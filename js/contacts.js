@@ -2,7 +2,6 @@
 import { db }              from '../supabase.js';
 import { s }               from './state.js';
 import { $, toast, todayKey, fmtDateStr, shiftDateStr, localDateStr } from './utils.js';
-import { MALL_ID }         from './constants.js';
 
 window.toggleCxChip = function(chip) {
   const idx = s.cxInterested.indexOf(chip);
@@ -35,7 +34,7 @@ window.saveContact = async function() {
   btn.disabled = true; btn.textContent = 'Saving…';
   const fupVal  = $('cx-followup-dt').value;
   const contact = {
-    mall_id:       MALL_ID,
+    mall_id:       s.activeMallId,
     rep_id:        s.session.id,
     rep_name:      s.session.name,
     name,
@@ -91,10 +90,18 @@ export async function renderContacts() {
     .eq('rep_id', s.session.id)
     .order('follow_up_at', { ascending: true, nullsFirst: false });
 
-  $('cx-list').innerHTML = buildContactsHTML(data || []);
+  const contacts = data || [];
+  $('cx-list').innerHTML = buildContactsHTML(contacts);
+
+  // Show search bar once there's something to search
+  const searchWrap = $('cx-search-wrap');
+  if (searchWrap) searchWrap.style.display = contacts.length > 4 ? '' : 'none';
+  // Reset search on re-render
+  const searchInput = $('cx-search');
+  if (searchInput) searchInput.value = '';
 
   const today = todayKey();
-  const overdueCount = (data || []).filter(c =>
+  const overdueCount = contacts.filter(c =>
     c.status === 'pending' && c.follow_up_at && localDateStr(c.follow_up_at) < today
   ).length;
   ['nav-contacts-badge','lnav-contacts-badge'].forEach(id => {
@@ -104,6 +111,42 @@ export async function renderContacts() {
     el.style.display  = overdueCount > 0 ? 'flex' : 'none';
   });
 }
+
+window.filterContacts = function(q) {
+  const query = q.toLowerCase().trim();
+  // Each contact is a .cx-card element; group labels are .cx-section-label
+  const cards = $('cx-list')?.querySelectorAll('.cx-card');
+  if (!cards) return;
+
+  const labels = new Set();
+  cards.forEach(card => {
+    const name  = card.dataset.name  || '';
+    const phone = card.dataset.phone || '';
+    const email = card.dataset.email || '';
+    const match = !query || name.includes(query) || phone.includes(query) || email.includes(query);
+    card.style.display = match ? '' : 'none';
+    if (match) labels.add(card.dataset.group);
+  });
+
+  // Hide section labels with no visible cards
+  $('cx-list')?.querySelectorAll('.cx-section-label').forEach(lbl => {
+    lbl.style.display = (!query || labels.has(lbl.dataset.group)) ? '' : 'none';
+  });
+
+  // No-results message
+  let emptyEl = $('cx-list')?.querySelector('.list-search-empty');
+  if (query && labels.size === 0) {
+    if (!emptyEl) {
+      emptyEl = document.createElement('div');
+      emptyEl.className = 'empty list-search-empty';
+      $('cx-list').appendChild(emptyEl);
+    }
+    emptyEl.textContent = `No contacts match "${q}"`;
+    emptyEl.style.display = '';
+  } else if (emptyEl) {
+    emptyEl.style.display = 'none';
+  }
+};
 
 function buildContactsHTML(contacts) {
   if (!contacts.length) return '<div class="empty">No contacts yet.<br>Add your first lead above.</div>';
@@ -130,11 +173,12 @@ function buildContactsHTML(contacts) {
 }
 
 function renderCxGroup(label, contacts, today, tomorrow) {
-  return `<div class="cx-section-label">${label}</div>` +
-    contacts.map(c => renderCxCard(c, today, tomorrow)).join('');
+  const groupKey = label.toLowerCase().replace(/\s+/g, '-');
+  return `<div class="cx-section-label" data-group="${groupKey}">${label}</div>` +
+    contacts.map(c => renderCxCard(c, today, tomorrow, groupKey)).join('');
 }
 
-function renderCxCard(c, today, tomorrow) {
+function renderCxCard(c, today, tomorrow, groupKey = '') {
   const statusLabels = { pending:'Pending', called:'Called', converted:'Converted', lost:'Lost' };
   const intLabels    = { credit:'Credit Card', money:'Money Account', debit:'Debit' };
 
@@ -157,7 +201,7 @@ function renderCxCard(c, today, tomorrow) {
   if (c.status !== 'lost')      actions.push(`<button class="cx-action-btn lost"      onclick="updateContactStatus('${c.id}','lost')">Mark lost</button>`);
   actions.push(`<button class="cx-action-btn delete" onclick="deleteContact('${c.id}')">Delete</button>`);
 
-  return `<div class="cx-card" id="cxcard-${c.id}" onclick="toggleCxCard('${c.id}')">
+  return `<div class="cx-card" id="cxcard-${c.id}" data-name="${c.name.toLowerCase()}" data-phone="${(c.phone||'').toLowerCase()}" data-email="${(c.email||'').toLowerCase()}" data-group="${groupKey}" onclick="toggleCxCard('${c.id}')">
     <div class="cx-card-body">
       <div class="cx-name-row">
         <div class="cx-name">${c.name}</div>

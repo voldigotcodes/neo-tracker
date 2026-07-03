@@ -1,8 +1,7 @@
 // ── LOG FORM · PRODUCT TREE · CART · SUBMIT ───────────────────────
 import { db }            from '../supabase.js';
 import { s }             from './state.js';
-import { $, toast, todayKey } from './utils.js';
-import { MALL_ID }       from './constants.js';
+import { $, toast, todayKey, haptic } from './utils.js';
 import { queueSale }     from './offline.js';
 
 // ── Cart helpers ─────────────────────────────────────────────────
@@ -129,7 +128,7 @@ window.submitSale = async function() {
   btn.disabled = true; btn.textContent = 'Logging…';
 
   const sale = {
-    mall_id:   MALL_ID, rep_id: repId, rep_name: repName,
+    mall_id:   s.activeMallId, rep_id: repId, rep_name: repName,
     sale_date: todayKey(), sale_time: new Date().toTimeString().slice(0, 8),
     products:  s.cart.map(i => i.p), labels: s.cart.map(i => i.l),
     type:      hasCredit() ? 'credit' : 'debit',
@@ -145,7 +144,8 @@ window.submitSale = async function() {
       deposited: sale.deposited, deposit:  sale.deposit,
       notes:     sale.notes,
     }).eq('id', s.editingId);
-    if (error) { toast('Error updating. Try again.'); btn.disabled = false; btn.textContent = 'Update sale'; return; }
+    if (error) { haptic('error'); toast('Error updating. Try again.'); btn.disabled = false; btn.textContent = 'Update sale'; return; }
+    haptic('success');
     toast('✓ Sale updated');
     resetForm();
     btn.disabled = false; btn.textContent = 'Log sale';
@@ -156,13 +156,16 @@ window.submitSale = async function() {
     if (error) {
       if (!navigator.onLine) {
         await queueSale(sale);
+        haptic('success');
         toast('No connection — sale queued ⏳');
       } else {
+        haptic('error');
         toast('Error saving. Try again.');
         btn.disabled = false; btn.textContent = 'Log sale';
         return;
       }
     } else {
+      haptic('success');
       toast('✓ Logged · message copied 📋');
     }
     resetForm();
@@ -192,7 +195,7 @@ export function buildActivationMessage(cartItems, f) {
 
   return [
     `Activation: mall`,
-    `Location: CF Promenade St-Bruno`,
+    `Location: ${s.activeMallName || 'Neo Kiosk'}`,
     `Was this a new Cx: Yes`,
     `WE/W or SecWE/SecW: ${weLabel}`,
     `Std Credit or Sec Card: ${stdLabel}`,
