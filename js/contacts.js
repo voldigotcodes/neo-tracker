@@ -86,7 +86,7 @@ export function resetContactForm() {
 // Always filtered by session.id — no exceptions
 export async function renderContacts() {
   const { data } = await db.from('contacts')
-    .select('*')
+    .select('id,name,phone,email,interested_in,notes,follow_up_at,status')
     .eq('rep_id', s.session.id)
     .order('follow_up_at', { ascending: true, nullsFirst: false });
 

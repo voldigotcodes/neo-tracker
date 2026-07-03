@@ -169,7 +169,7 @@ window.saveTargets = async function() {
 };
 
 async function renderRepList() {
-  const { data } = await db.from('reps').select('*').eq('mall_id', s.activeMallId).order('name');
+  const { data } = await db.from('reps').select('id,name,email,role,active').eq('mall_id', s.activeMallId).order('name');
   if (!data?.length) { $('rep-list').innerHTML = '<div class="empty">No reps yet.</div>'; return; }
 
   function buildRow(r) {

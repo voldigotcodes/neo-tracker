@@ -1,5 +1,5 @@
 // ─── SERVICE WORKER · Neo Tracker ─────────────────────────────────
-const CACHE = 'neo-tracker-v11';
+const CACHE = 'neo-tracker-v12';
 const ASSETS = ['/', '/index.html', '/style.css', '/app.js', '/supabase.js', '/manifest.json'];
 
 // Install: cache core assets

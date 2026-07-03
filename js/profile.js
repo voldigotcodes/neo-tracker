@@ -8,29 +8,45 @@ import { DAY_SHORT, D0_TGT, CR_TGT } from './constants.js';
 async function fetchPeriodData(repId, refDate, period) {
   const ref   = new Date(refDate + 'T12:00:00');
   const today = todayKey();
-  let sales = [], chartBars = [], chartLbl = '';
   let fromDate = refDate, toDate = refDate;
+  let mon; // saved for week chart build
 
+  // Compute date range first so both queries can run in parallel
+  if (period === 'week') {
+    const dow = ref.getDay();
+    const monOff = dow === 0 ? 6 : dow - 1;
+    mon      = new Date(ref); mon.setDate(ref.getDate() - monOff);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    fromDate = mon.toISOString().slice(0, 10);
+    toDate   = sun.toISOString().slice(0, 10);
+  } else if (period === 'month') {
+    const y = ref.getFullYear(), m = ref.getMonth();
+    fromDate = new Date(y, m, 1).toISOString().slice(0, 10);
+    toDate   = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+  }
+
+  // Fetch sales and shifts in parallel
+  const [{ data: salesData }, { data: shiftRows }] = await Promise.all([
+    db.from('sales')
+      .select('sale_date,activated,type,sale_time,labels')
+      .eq('mall_id', s.activeMallId).eq('rep_id', repId)
+      .gte('sale_date', fromDate).lte('sale_date', toDate),
+    db.from('shifts')
+      .select('hours').eq('rep_id', repId)
+      .gte('shift_date', fromDate).lte('shift_date', toDate),
+  ]);
+
+  const sales      = salesData || [];
+  const totalHours = (shiftRows || []).reduce((acc, r) => acc + parseFloat(r.hours), 0);
+
+  // Build chart from the already-fetched sales data
+  let chartBars, chartLbl;
   if (period === 'day') {
-    const { data } = await db.from('sales').select('*')
-      .eq('mall_id', s.activeMallId).eq('rep_id', repId).eq('sale_date', refDate);
-    sales    = data || [];
     chartLbl = fmtDateStr(refDate);
     const hm = {}, nowH = new Date().getHours();
     sales.forEach(r => { const h = parseInt(r.sale_time?.slice(0,2) || '9'); hm[h] = (hm[h] || 0) + 1; });
     chartBars = [9,10,11,12,13,14,15,16,17,18,19].map(h => ({ l: h+'h', n: hm[h]||0, cur: h===nowH && refDate===today }));
-
   } else if (period === 'week') {
-    const dow    = ref.getDay();
-    const monOff = dow === 0 ? 6 : dow - 1;
-    const mon    = new Date(ref); mon.setDate(ref.getDate() - monOff);
-    const sun    = new Date(mon); sun.setDate(mon.getDate() + 6);
-    fromDate = mon.toISOString().slice(0, 10);
-    toDate   = sun.toISOString().slice(0, 10);
-    const { data } = await db.from('sales').select('*')
-      .eq('mall_id', s.activeMallId).eq('rep_id', repId)
-      .gte('sale_date', fromDate).lte('sale_date', toDate);
-    sales    = data || [];
     chartLbl = 'This week';
     const dm = {};
     sales.forEach(r => { dm[r.sale_date] = (dm[r.sale_date] || 0) + 1; });
@@ -39,27 +55,13 @@ async function fetchPeriodData(repId, refDate, period) {
       const k  = dt.toISOString().slice(0, 10);
       return { l: d, n: dm[k] || 0, cur: k === refDate };
     });
-
   } else {
-    const y = ref.getFullYear(), m = ref.getMonth();
-    fromDate = new Date(y, m, 1).toISOString().slice(0, 10);
-    toDate   = new Date(y, m + 1, 0).toISOString().slice(0, 10);
-    const { data } = await db.from('sales').select('*')
-      .eq('mall_id', s.activeMallId).eq('rep_id', repId)
-      .gte('sale_date', fromDate).lte('sale_date', toDate);
-    sales    = data || [];
     chartLbl = ref.toLocaleDateString('en-CA', { month:'long', year:'numeric' });
     const weeks = [{l:'W1',n:0,cur:false},{l:'W2',n:0,cur:false},{l:'W3',n:0,cur:false},{l:'W4',n:0,cur:false}];
     sales.forEach(r => { const wi = Math.min(Math.floor((parseInt(r.sale_date.slice(8)) - 1) / 7), 3); weeks[wi].n++; });
     weeks[Math.min(Math.floor((parseInt(refDate.slice(8)) - 1) / 7), 3)].cur = true;
     chartBars = weeks;
   }
-
-  // Fetch shift hours for the period and sum them
-  const { data: shiftRows } = await db.from('shifts')
-    .select('hours').eq('rep_id', repId)
-    .gte('shift_date', fromDate).lte('shift_date', toDate);
-  const totalHours = (shiftRows || []).reduce((acc, r) => acc + parseFloat(r.hours), 0);
 
   return { sales, chartBars, chartLbl, totalHours };
 }
@@ -131,6 +133,8 @@ window.loadModalPeriod = async function(period, btn) {
     document.querySelectorAll('.modal-period-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
+  $('modal-kpis').innerHTML = '<div class="skeleton" style="height:48px;border-radius:10px"></div>';
+  $('modal-breakdown').innerHTML = '<div class="skeleton" style="height:80px;border-radius:10px;margin-top:12px"></div>';
   const { sales, chartBars, chartLbl, totalHours } = await fetchPeriodData(s.modalRepId, s.modalRefDate, period);
   renderKpisAndChart(sales, chartBars, chartLbl, 'modal-kpis', 'modal-chart-lbl', 'modal-chart', 'modal-breakdown', totalHours);
 };
@@ -212,6 +216,8 @@ window.setProfilePeriod = function(period, btn) {
 
 // Exported so calendar.js can call it after a date pick
 export async function renderProfileData() {
+  $('profile-kpis').innerHTML = '<div class="skeleton" style="height:48px;border-radius:10px"></div>';
+  $('profile-breakdown').innerHTML = '<div class="skeleton" style="height:80px;border-radius:10px;margin-top:12px"></div>';
   const { sales, chartBars, chartLbl, totalHours } = await fetchPeriodData(s.profileRepId, s.profileDate, s.profilePeriod);
   renderKpisAndChart(sales, chartBars, chartLbl, 'profile-kpis', 'profile-chart-lbl', 'profile-chart', 'profile-breakdown', totalHours);
 }

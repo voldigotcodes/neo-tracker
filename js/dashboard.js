@@ -104,10 +104,34 @@ export async function renderDash() {
     }
   }
 
-  // ── Fetch sales ────────────────────────────────────────────────
-  const { data: salesData } = await db.from('sales').select('*')
+  // ── Skeleton while fetching ────────────────────────────────────
+  ['k-tot','k-tgt','k-d0','k-cr'].forEach(id => { const el = $(id); if (el) el.classList.add('skeleton'); });
+  $('rep-bd').innerHTML = '<div class="skeleton" style="height:56px;border-radius:12px;margin:4px 0"></div>'.repeat(3);
+
+  // ── Fetch all data in parallel ─────────────────────────────────
+  const salesQ  = db.from('sales')
+    .select('sale_date,rep_id,rep_name,activated,type,created_at')
     .eq('mall_id', s.activeMallId).gte('sale_date', fromDate).lte('sale_date', toDate).order('created_at');
+  const shiftsQ = db.from('shifts')
+    .select('rep_id,hours').eq('mall_id', s.activeMallId)
+    .gte('shift_date', fromDate).lte('shift_date', toDate);
+
+  // Day mode: fetch week chart data in the same round-trip
+  let wkQ = null;
+  if (s.dashPeriod === 'day') {
+    const { mon } = weekRange(s.dashDate);
+    const monKey  = mon.toISOString().slice(0, 10);
+    wkQ = db.from('sales').select('sale_date').eq('mall_id', s.activeMallId).gte('sale_date', monKey);
+  }
+
+  const [{ data: salesData }, { data: shiftRows }, wkResult] = await Promise.all([
+    salesQ, shiftsQ, wkQ || Promise.resolve({ data: null }),
+  ]);
+
   const salesAll = salesData || [];
+
+  // Clear skeletons
+  ['k-tot','k-tgt','k-d0','k-cr'].forEach(id => { const el = $(id); if (el) el.classList.remove('skeleton'); });
 
   const tot = salesAll.length;
   const d0s = salesAll.filter(r => r.activated).length;
@@ -126,11 +150,7 @@ export async function renderDash() {
   $('k-tgt-lbl').textContent = tgtLabel;
   $('k-d0').textContent      = d0r + '%';
   $('k-cr').textContent      = crr + '%';
-
   // ── CPH / ACPH (shifts for full period) ───────────────────────
-  const { data: shiftRows } = await db.from('shifts')
-    .select('rep_id, hours').eq('mall_id', s.activeMallId)
-    .gte('shift_date', fromDate).lte('shift_date', toDate);
   const shiftRepMap = {};
   (shiftRows || []).forEach(r => {
     shiftRepMap[r.rep_id] = (shiftRepMap[r.rep_id] || 0) + parseFloat(r.hours);
@@ -193,12 +213,9 @@ export async function renderDash() {
       chartTitle = dashDateLabel();
       salesAll.forEach(r => { dm[r.sale_date] = (dm[r.sale_date] || 0) + 1; });
     } else {
-      // day mode: fetch all week sales separately for the chart context
+      // day mode: use wkResult fetched in parallel above
       chartTitle = 'This week';
-      const monKey = mon.toISOString().slice(0, 10);
-      const { data: wkData } = await db.from('sales')
-        .select('sale_date').eq('mall_id', s.activeMallId).gte('sale_date', monKey);
-      (wkData || []).forEach(r => { dm[r.sale_date] = (dm[r.sale_date] || 0) + 1; });
+      (wkResult?.data || []).forEach(r => { dm[r.sale_date] = (dm[r.sale_date] || 0) + 1; });
     }
 
     const now = new Date();

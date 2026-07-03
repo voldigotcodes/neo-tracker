@@ -113,8 +113,26 @@ export async function bootApp() {
   drainQueue();
 }
 
+// ── Auto-refresh every 30s ────────────────────────────────────────
+let _refreshTimer = null;
+function startAutoRefresh() {
+  if (_refreshTimer) clearInterval(_refreshTimer);
+  _refreshTimer = setInterval(() => {
+    if (!s.session || document.hidden) return;
+    if (s.session.role === 'lead') {
+      if ($('lview-dash')?.classList.contains('active')) renderDash();
+      if ($('lview-feed')?.classList.contains('active')) renderLeadFeed();
+    } else {
+      if ($('view-feed')?.classList.contains('active'))  renderRepFeed();
+      if ($('view-stats')?.classList.contains('active')) renderRepStats();
+    }
+  }, 30000);
+}
+startAutoRefresh();
+
 // ── Logout ────────────────────────────────────────────────────────
 window.doLogout = function() {
+  if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
   db.auth.signOut().catch(console.warn);
   localStorage.removeItem('neo_session');
   s.session = null;
@@ -237,14 +255,3 @@ window.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('online', () => { if (s.session) drainQueue(); });
 });
 
-// ── Auto-refresh every 30s ────────────────────────────────────────
-setInterval(() => {
-  if (!s.session) return;
-  if (s.session.role === 'lead') {
-    if ($('lview-dash')?.classList.contains('active')) renderDash();
-    if ($('lview-feed')?.classList.contains('active')) renderLeadFeed();
-  } else {
-    if ($('view-feed')?.classList.contains('active'))  renderRepFeed();
-    if ($('view-stats')?.classList.contains('active')) renderRepStats();
-  }
-}, 30000);
